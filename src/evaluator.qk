@@ -1,0 +1,51 @@
+// evaluator.qk
+
+fn eval(node, env) {
+    if type_of(node) != "List" { return node }
+    
+    let type = node[0]
+    
+    if type == "Int" { return node[1] }
+    if type == "Float" { return node[1] }
+    if type == "String" { return node[1] }
+    if type == "Bool" { return node[1] }
+    
+    if type == "Program" {
+        let stmts = node[1]
+        let mut last = None
+        let mut i = 0
+        while i < len(stmts) {
+            last = eval(stmts[i], env)
+            i = i + 1
+        }
+        return last
+    }
+    
+    if type == "Ident" {
+        let res = env_get(env, node[1])
+        return match res {
+            Ok(v) => v,
+            Err(e) => None
+        }
+    }
+    
+    if type == "Let" {
+        let val = eval(node[3], env)
+        env_define(env, node[1], val, node[2])
+        return None
+    }
+    
+    if type == "Call" {
+        let callee = eval(node[1], env)
+        if type_of(callee) == "List" and callee[0] == "Builtin" {
+            // Builtin call
+            if callee[1] == "println" {
+                println(eval(node[2][0], env))
+                return None
+            }
+        }
+        return None
+    }
+    
+    return None
+}

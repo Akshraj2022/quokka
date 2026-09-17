@@ -1,0 +1,88 @@
+// ============================================================
+// Quokka — Option and Result Demo
+// Demonstrates: Option[T], Result[T,E], match, ? operator
+// ============================================================
+
+// --- Option[T]: representing possible absence ---
+
+// Some wraps a value; None represents absence
+let maybe_name = Some("Alice")
+let no_name = None
+
+// Match is the primary way to handle Options — exhaustive
+match maybe_name {
+    Some(n) => print("Found: " ++ n),
+    None => print("No name found"),
+}
+
+// unwrap_or: extract with a fallback (no panic, ever)
+let name = unwrap_or(no_name, "Anonymous")
+print("Name: " ++ name)
+
+// map: transform inside the Option without unwrapping
+let upper = map(maybe_name, fn(n: String) -> String {
+    n ++ "!!!"
+})
+match upper {
+    Some(s) => print("Mapped: " ++ s),
+    None => print("Nothing to map"),
+}
+
+// --- Result[T,E]: explicit error handling ---
+
+// Functions that can fail return Result
+fn safe_divide(a: Int, b: Int) -> Result {
+    if b == 0 {
+        Err("division by zero")
+    } else {
+        Ok(a / b)
+    }
+}
+
+// Match on Result
+let result = safe_divide(42, 6)
+match result {
+    Ok(val) => print(val),
+    Err(msg) => print("Error: " ++ msg),
+}
+
+// The ? operator propagates errors automatically
+fn compute(x: Int) -> Result {
+    let a = safe_divide(100, x)?
+    let b = safe_divide(a, 2)?
+    Ok(b + 1)
+}
+
+match compute(5) {
+    Ok(v) => print("compute(5) = " ++ to_string(v)),
+    Err(e) => print("compute(5) failed: " ++ e),
+}
+
+match compute(0) {
+    Ok(v) => print("compute(0) = " ++ to_string(v)),
+    Err(e) => print("compute(0) failed: " ++ e),
+}
+
+// --- and_then: chaining fallible operations ---
+
+fn lookup_user(id: Int) -> Option {
+    if id == 1 {
+        Some("alice@example.com")
+    } else {
+        None
+    }
+}
+
+fn extract_domain(email: String) -> Option {
+    Some("example.com")
+}
+
+// Chain: lookup user, then extract domain
+let domain = and_then(lookup_user(1), fn(email: String) -> Option {
+    extract_domain(email)
+})
+
+match domain {
+    Some(d) => print("Domain: " ++ d),
+    None => print("No domain found"),
+}

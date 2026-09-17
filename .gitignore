@@ -1,0 +1,7 @@
+﻿build/
+installer/dist/
+__pycache__/
+*.pyc
+*.spec
+installer/installer_assets/payload.zip
+installer/installer_assets/vscode_ext.zip

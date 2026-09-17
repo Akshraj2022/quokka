@@ -1,0 +1,16 @@
+fn fact(n) {
+    if n <= 1 {
+        return 1
+    } else {
+        return n * fact(n - 1)
+    }
+}
+
+let mut i = 0
+while i < 3 {
+    i = i + 1
+}
+
+if fact(3) == 6 and i == 3 {
+    println("Control flow and functions test passed")
+}

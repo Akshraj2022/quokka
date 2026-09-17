@@ -1,0 +1,139 @@
+// lexer.qk
+// Lexer outputs a list of tokens: [type_string, literal_value, line]
+
+fn is_alpha(c) {
+    let alpha = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+    let mut i = 0
+    let l = len(alpha)
+    while i < l {
+        if substring(alpha, i, i + 1) == c { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn is_digit(c) {
+    let digits = "0123456789"
+    let mut i = 0
+    let l = len(digits)
+    while i < l {
+        if substring(digits, i, i + 1) == c { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn is_alnum(c) {
+    return is_alpha(c) or is_digit(c)
+}
+
+fn lex(source) {
+    let mut tokens = []
+    let mut i = 0
+    let mut line = 1
+    let srclen = len(source)
+    
+    while i < srclen {
+        let c = source[i]
+        
+        let newline = "
+"
+        let cr = substring("
+", 0, 1) // If this file has CRLF, cr might be \r. Actually just let's check it.
+        // It's safer to just match any whitespace including newlines by doing a list search.
+        let space = " 	
+"
+        let mut is_space = false
+        let mut k = 0
+        while k < len(space) {
+            if c == substring(space, k, k+1) { is_space = true }
+            k = k + 1
+        }
+        
+        if is_space {
+            if c == newline { line = line + 1 }
+            i = i + 1
+        } else if c == "/" and i + 1 < srclen and source[i+1] == "/" {
+            while i < srclen and source[i] != newline {
+                i = i + 1
+            }
+        } else if is_alpha(c) {
+            let mut start = i
+            while i < srclen and is_alnum(source[i]) {
+                i = i + 1
+            }
+            let word = substring(source, start, i)
+            let mut type = "IDENT"
+            if word == "let" { type = "LET" }
+            else if word == "mut" { type = "MUT" }
+            else if word == "shadow" { type = "SHADOW" }
+            else if word == "fn" { type = "FN" }
+            else if word == "return" { type = "RETURN" }
+            else if word == "if" { type = "IF" }
+            else if word == "else" { type = "ELSE" }
+            else if word == "while" { type = "WHILE" }
+            else if word == "true" { type = "TRUE" }
+            else if word == "false" { type = "FALSE" }
+            else if word == "and" { type = "AND" }
+            else if word == "or" { type = "OR" }
+            else if word == "not" { type = "NOT" }
+            else if word == "Some" { type = "SOME" }
+            else if word == "None" { type = "NONE" }
+            else if word == "Ok" { type = "OK" }
+            else if word == "Err" { type = "ERR" }
+            else if word == "match" { type = "MATCH" }
+            push(tokens, [type, word, line])
+        } else if is_digit(c) {
+            let mut start = i
+            while i < srclen and is_digit(source[i]) {
+                i = i + 1
+            }
+            // Simplified float parsing omitted for brevity
+            let word = substring(source, start, i)
+            push(tokens, ["INT", unwrap_or(to_int(word), 0), line])
+        } else if c == "\"" {
+            i = i + 1
+            let mut start = i
+            while i < srclen and source[i] != "\"" {
+                i = i + 1
+            }
+            let word = substring(source, start, i)
+            i = i + 1
+            push(tokens, ["STRING", word, line])
+        } else {
+            let mut next = ""
+            if i + 1 < srclen { next = source[i+1] }
+            
+            if c == "+" and next == "+" { push(tokens, ["CONCAT", "++", line]) i = i + 2 }
+            else if c == "=" and next == "=" { push(tokens, ["EQ", "==", line]) i = i + 2 }
+            else if c == "!" and next == "=" { push(tokens, ["NEQ", "!=", line]) i = i + 2 }
+            else if c == "<" and next == "=" { push(tokens, ["LEQ", "<=", line]) i = i + 2 }
+            else if c == ">" and next == "=" { push(tokens, ["GEQ", ">=", line]) i = i + 2 }
+            else if c == "=" and next == ">" { push(tokens, ["FAT_ARROW", "=>", line]) i = i + 2 }
+            else {
+                let mut type = "UNKNOWN"
+                if c == "+" { type = "PLUS" }
+                else if c == "-" { type = "MINUS" }
+                else if c == "*" { type = "STAR" }
+                else if c == "/" { type = "SLASH" }
+                else if c == "%" { type = "PERCENT" }
+                else if c == "=" { type = "ASSIGN" }
+                else if c == "<" { type = "LT" }
+                else if c == ">" { type = "GT" }
+                else if c == "(" { type = "LPAREN" }
+                else if c == ")" { type = "RPAREN" }
+                else if c == "{" { type = "LBRACE" }
+                else if c == "}" { type = "RBRACE" }
+                else if c == "[" { type = "LBRACKET" }
+                else if c == "]" { type = "RBRACKET" }
+                else if c == "," { type = "COMMA" }
+                else if c == "?" { type = "QUESTION" }
+                else if c == "_" { type = "UNDERSCORE" }
+                push(tokens, [type, c, line])
+                i = i + 1
+            }
+        }
+    }
+    push(tokens, ["EOF", "", line])
+    return tokens
+}

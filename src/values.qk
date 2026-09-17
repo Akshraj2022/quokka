@@ -1,0 +1,14 @@
+// values.qk
+
+// Since values in our self-hosted interpreter can just map to 
+// the underlying stage-0 interpreter values (like Int, String, List),
+// we don't need complex wrappers for primitives.
+
+// However, for Functions, we need to represent them explicitly.
+fn val_fn(name, params, body, closure_env) {
+    return ["FnVal", name, params, body, closure_env]
+}
+
+fn val_builtin(name, arity) {
+    return ["Builtin", name, arity]
+}

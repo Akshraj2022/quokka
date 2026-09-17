@@ -1,0 +1,5 @@
+let imm = 10
+let mut m = 20
+m = 30
+shadow m = "forty"
+println("Bindings test passed")

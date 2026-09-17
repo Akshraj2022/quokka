@@ -1,0 +1,19 @@
+// ============================================================
+// Quokka — Fibonacci (recursive)
+// Demonstrates: functions, recursion, if/else expressions
+// ============================================================
+
+fn fib(n: Int) -> Int {
+    if n <= 1 {
+        n
+    } else {
+        fib(n - 1) + fib(n - 2)
+    }
+}
+
+// Print first 15 fibonacci numbers
+let mut i = 0
+while i < 15 {
+    print(fib(i))
+    i = i + 1
+}

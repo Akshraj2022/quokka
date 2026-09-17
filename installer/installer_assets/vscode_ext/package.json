@@ -1,0 +1,29 @@
+{
+    "name": "quokka-lang",
+    "displayName": "Quokka Language Support",
+    "description": "Syntax highlighting and snippets for Quokka (.qk) files.",
+    "version": "1.0.0",
+    "engines": {
+        "vscode": "^1.60.0"
+    },
+    "categories": [
+        "Programming Languages"
+    ],
+    "contributes": {
+        "languages": [
+            {
+                "id": "quokka",
+                "aliases": ["Quokka", "quokka"],
+                "extensions": [".qk"],
+                "configuration": "./language-configuration.json"
+            }
+        ],
+        "grammars": [
+            {
+                "language": "quokka",
+                "scopeName": "source.quokka",
+                "path": "./syntaxes/quokka.tmLanguage.json"
+            }
+        ]
+    }
+}

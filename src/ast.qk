@@ -1,0 +1,28 @@
+// ast.qk - Defines AST nodes as Lists: [type_string, ...fields]
+
+fn node_int(val) { return ["Int", val] }
+fn node_float(val) { return ["Float", val] }
+fn node_bool(val) { return ["Bool", val] }
+fn node_string(val) { return ["String", val] }
+fn node_ident(name) { return ["Ident", name] }
+
+fn node_let(name, is_mut, value) { return ["Let", name, is_mut, value] }
+fn node_shadow(name, value) { return ["Shadow", name, value] }
+fn node_assign(name, value) { return ["Assign", name, value] }
+
+fn node_binary(op, left, right) { return ["Binary", op, left, right] }
+fn node_unary(op, operand) { return ["Unary", op, operand] }
+
+fn node_if(cond, then_b, else_b) { return ["If", cond, then_b, else_b] }
+fn node_while(cond, body) { return ["While", cond, body] }
+
+fn node_fn(name, params, body) { return ["Fn", name, params, body] }
+fn node_call(callee, args) { return ["Call", callee, args] }
+
+fn node_block(stmts) { return ["Block", stmts] }
+fn node_return(val) { return ["Return", val] }
+fn node_program(stmts) { return ["Program", stmts] }
+
+// New features
+fn node_list(elements) { return ["ListLit", elements] }
+fn node_index(array, idx) { return ["Index", array, idx] }

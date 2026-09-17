@@ -1,0 +1,98 @@
+// joey.qk
+// Optional Joey ML extension for Quokka
+
+// In Quokka, assuming `.` syntax translates to map lookups with closures, 
+// or struct method calls. Here we simulate the pipeline object.
+
+fn pipeline() {
+    // A pipeline is essentially a map (represented as a list of operations for now)
+    // that builds up a configuration to be sent to the Python backend.
+    
+    let mut config = []
+    
+    // We define functions that capture the config list
+    fn load_model(model_name, quantization) {
+        push(config, ["load_model", model_name, quantization])
+        return Ok(true)
+    }
+    
+    fn qlora(r, lora_alpha, dropout) {
+        push(config, ["qlora", r, lora_alpha, dropout])
+        return Ok(true)
+    }
+    
+    fn dataset(name, max_seq_length) {
+        push(config, ["dataset", name, max_seq_length])
+        return Ok(true)
+    }
+    
+    fn train(epochs, learning_rate, batch_size, grad_accum) {
+        push(config, ["train", epochs, learning_rate, batch_size, grad_accum])
+        return Ok(true)
+    }
+    
+    fn save(path) {
+        push(config, ["save", path])
+        return Ok(true)
+    }
+    
+    fn run() {
+        // Serialize config to simple JSON-like format
+        // Since we don't have full JSON in Stage 1 yet, we do a basic encoding
+        // or rely on a `json_stringify` builtin if available.
+        // For now, write a naive representation to a file.
+        // A robust JSON encoder should be part of the Quokka stdlib.
+        
+        // As per requirements: Do not execute shell commands by string concatenation.
+        // Use structured arguments.
+        
+        let mut json = "["
+        let mut i = 0
+        while i < len(config) {
+            let cmd = config[i]
+            json = json ++ "{\"" ++ cmd[0] ++ "\": ["
+            let mut j = 1
+            while j < len(cmd) {
+                // simple serialization
+                json = json ++ "\"" ++ to_string(cmd[j]) ++ "\""
+                if j < len(cmd) - 1 { json = json ++ ", " }
+                j = j + 1
+            }
+            json = json ++ "]}"
+            if i < len(config) - 1 { json = json ++ ", " }
+            i = i + 1
+        }
+        json = json ++ "]"
+        
+        let write_res = file_write(".joey_job.json", json)
+        match write_res {
+            Ok(v) => {
+                // Execute Python backend
+                let result = exec(["python", "joey_backend.py", ".joey_job.json"])
+                match result {
+                    Ok(res) => {
+                        let status = res[0][1]
+                        let out = res[1][1]
+                        println(out)
+                        if status == 0 {
+                            return Ok(true)
+                        } else {
+                            return Err("Joey backend failed with status " ++ to_string(status))
+                        }
+                    },
+                    Err(e) => return Err("Failed to launch Joey backend: " ++ e)
+                }
+            },
+            Err(e) => return Err("Failed to write job config: " ++ e)
+        }
+    }
+    
+    // Return an object-like structure. 
+    // Since Quokka doesn't have structs yet, we can return a list of closures, 
+    // or assume the final language will support struct instantiation here.
+    // For demonstration of the API, we assume dynamic typing allows this:
+    // return { load_model, qlora, dataset, train, save, run }
+    
+    // We will just expose them.
+    return [load_model, qlora, dataset, train, save, run]
+}

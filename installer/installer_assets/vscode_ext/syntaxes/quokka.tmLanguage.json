@@ -1,0 +1,59 @@
+{
+    "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+    "name": "Quokka",
+    "patterns": [
+        {
+            "include": "#keywords"
+        },
+        {
+            "include": "#strings"
+        },
+        {
+            "include": "#comments"
+        },
+        {
+            "include": "#numbers"
+        },
+        {
+            "include": "#constants"
+        }
+    ],
+    "repository": {
+        "keywords": {
+            "patterns": [
+                {
+                    "name": "keyword.control.quokka",
+                    "match": "\\b(if|else|while|return|match|fn|let|mut|shadow)\\b"
+                }
+            ]
+        },
+        "strings": {
+            "name": "string.quoted.double.quokka",
+            "begin": "\"",
+            "end": "\"",
+            "patterns": [
+                {
+                    "name": "constant.character.escape.quokka",
+                    "match": "\\\\."
+                }
+            ]
+        },
+        "comments": {
+            "patterns": [
+                {
+                    "name": "comment.line.double-slash.quokka",
+                    "match": "//.*$"
+                }
+            ]
+        },
+        "numbers": {
+            "name": "constant.numeric.quokka",
+            "match": "\\b\\d+(\\.\\d+)?\\b"
+        },
+        "constants": {
+            "name": "constant.language.quokka",
+            "match": "\\b(true|false|None|Some|Ok|Err)\\b"
+        }
+    },
+    "scopeName": "source.quokka"
+}

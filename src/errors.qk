@@ -1,0 +1,9 @@
+// errors.qk
+
+fn parse_error(line, msg) {
+    println("[line " ++ to_string(line) ++ "] Parse Error: " ++ msg)
+}
+
+fn runtime_error(line, msg) {
+    println("[line " ++ to_string(line) ++ "] Runtime Error: " ++ msg)
+}

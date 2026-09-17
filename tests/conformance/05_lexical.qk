@@ -1,0 +1,10 @@
+let x = 10
+fn make_adder(y) {
+    return fn(z) {
+        return x + y + z
+    }
+}
+let adder = make_adder(20)
+if adder(5) == 35 {
+    println("Lexical environment test passed")
+}

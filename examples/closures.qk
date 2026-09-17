@@ -1,0 +1,50 @@
+// ============================================================
+// Quokka — Closures and Shadow Demo
+// Demonstrates: capture-by-value, shadow semantics, lambdas
+// ============================================================
+
+// --- Capture by value ---
+// Closures snapshot variables at creation time
+
+let x = 10
+
+// This closure captures x = 10 (by value, not by reference)
+let get_x = fn() -> Int { x }
+
+// Shadow x — creates a NEW binding, doesn't affect the closure
+shadow x = 99
+
+print("x after shadow: " ++ to_string(x))
+print("get_x() still returns: " ++ to_string(get_x()))
+
+// --- Shadow in loops ---
+let items = range(1, 6)
+
+for item in items {
+    // Shadow transforms the loop variable
+    shadow item = item * item
+    print(to_string(item))
+}
+
+// --- Higher-order functions ---
+
+fn apply_twice(f: Function, value: Int) -> Int {
+    f(f(value))
+}
+
+let double = fn(n: Int) -> Int { n * 2 }
+
+let result = apply_twice(double, 3)
+print("apply_twice(double, 3) = " ++ to_string(result))
+
+// --- Closures with captured state ---
+
+fn make_adder(n: Int) -> Function {
+    fn(x: Int) -> Int { x + n }
+}
+
+let add5 = make_adder(5)
+let add10 = make_adder(10)
+
+print("add5(3) = " ++ to_string(add5(3)))
+print("add10(3) = " ++ to_string(add10(3)))

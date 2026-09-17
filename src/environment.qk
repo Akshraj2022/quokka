@@ -1,0 +1,62 @@
+// environment.qk
+
+fn env_new(parent) {
+    return [parent, []]
+}
+
+fn env_define(env, name, value, is_mut) {
+    let bindings = env[1]
+    let mut i = 0
+    let l = len(bindings)
+    while i < l {
+        let b = bindings[i]
+        if b[0] == name {
+            list_set(b, 1, value)
+            list_set(b, 2, is_mut)
+            return true
+        }
+        i = i + 1
+    }
+    push(bindings, [name, value, is_mut])
+    return true
+}
+
+fn env_get(env, name) {
+    let mut curr = env
+    while type_of(curr) == "List" and len(curr) == 2 {
+        let bindings = curr[1]
+        let mut i = 0
+        let l = len(bindings)
+        while i < l {
+            let b = bindings[i]
+            if b[0] == name {
+                return Ok(b[1])
+            }
+            i = i + 1
+        }
+        curr = curr[0]
+    }
+    return Err("Undefined variable")
+}
+
+fn env_set(env, name, value) {
+    let mut curr = env
+    while type_of(curr) == "List" and len(curr) == 2 {
+        let bindings = curr[1]
+        let mut i = 0
+        let l = len(bindings)
+        while i < l {
+            let b = bindings[i]
+            if b[0] == name {
+                if b[2] == false {
+                    return Err("Cannot mutate immutable variable")
+                }
+                list_set(b, 1, value)
+                return Ok(true)
+            }
+            i = i + 1
+        }
+        curr = curr[0]
+    }
+    return Err("Undefined variable")
+}
