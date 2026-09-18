@@ -38,7 +38,7 @@
         self.var_joey = BooleanVar(value=True)
         
         ttk.Checkbutton(comp_frame, text="Add Quokka to PATH", variable=self.var_path).pack(anchor=W)
-        ttk.Checkbutton(comp_frame, text="Associate .qk files with Quokka", variable=self.var_assoc).pack(anchor=W)
+        ttk.Checkbutton(comp_frame, text="Associate .qko and .🌿 files with Quokka", variable=self.var_assoc).pack(anchor=W)
         ttk.Checkbutton(comp_frame, text="Install Joey ML Extension", variable=self.var_joey).pack(anchor=W)
         
         btn_frame = ttk.Frame(frame)

@@ -2,7 +2,7 @@
     "name": "quokka-lang",
     "displayName": "Quokka Language Support",
     "description": "Syntax highlighting and snippets for Quokka (.qk) files.",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "engines": {
         "vscode": "^1.60.0"
     },
@@ -14,7 +14,7 @@
             {
                 "id": "quokka",
                 "aliases": ["Quokka", "quokka"],
-                "extensions": [".qk"],
+                "extensions": [".qko", ".🌿"],
                 "configuration": "./language-configuration.json"
             }
         ],

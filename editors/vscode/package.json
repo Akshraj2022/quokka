@@ -2,7 +2,7 @@
     "name": "quokka-lang",
     "displayName": "Quokka Language",
     "description": "Syntax highlighting for the Quokka programming language (.qk)",
-    "version": "0.0.1",
+    "version": "0.1.0",
     "publisher": "quokka",
     "engines": { "vscode": "^1.60.0" },
     "categories": ["Programming Languages"],
@@ -10,7 +10,7 @@
         "languages": [{
             "id": "quokka",
             "aliases": ["Quokka", "quokka"],
-            "extensions": [".qk"],
+            "extensions": [".qko", ".🌿"],
             "configuration": "./language-configuration.json",
             "icon": {
                 "light": "./icon.png",

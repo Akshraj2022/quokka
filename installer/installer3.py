@@ -50,7 +50,7 @@
                 self.add_to_path(target_dir)
                 
             if self.var_assoc.get():
-                self.update_progress(85, "Associating .qk files...")
+                self.update_progress(85, "Associating .qko and .🌿 files...")
                 self.associate_files(target_dir)
                 
             self.update_progress(100, "Finishing up...")
@@ -84,9 +84,10 @@
         try:
             qk_exe = os.path.join(target_dir, "quokka.bat")
             # Write to HKCU to avoid needing admin privileges if running as user
-            key_ext = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\.qk")
-            winreg.SetValue(key_ext, "", winreg.REG_SZ, "QuokkaScript")
-            winreg.CloseKey(key_ext)
+            for ext in [".qko", ".🌿"]:
+                key_ext = winreg.CreateKey(winreg.HKEY_CURRENT_USER, rf"Software\Classes\{ext}")
+                winreg.SetValue(key_ext, "", winreg.REG_SZ, "QuokkaScript")
+                winreg.CloseKey(key_ext)
             
             key_cls = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Classes\QuokkaScript")
             winreg.SetValue(key_cls, "", winreg.REG_SZ, "Quokka Script File")
@@ -96,7 +97,7 @@
             winreg.CloseKey(key_cmd)
             winreg.CloseKey(key_cls)
         except Exception as e:
-            print("Failed to associate .qk files:", e)
+            print("Failed to associate .qko and .🌿 files:", e)
 
 if __name__ == "__main__":
     app = QuokkaInstaller()

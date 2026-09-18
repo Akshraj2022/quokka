@@ -171,7 +171,7 @@ class InstallerApp(ctk.CTk):
         self.var_joey = ctk.BooleanVar(value=True)
         
         # Checkboxes with cute colors
-        for txt, var in [("Add Quokka to PATH", self.var_path), ("Associate .qk files with Quokka", self.var_assoc), ("Install Joey ML Extension", self.var_joey)]:
+        for txt, var in [("Add Quokka to PATH", self.var_path), ("Associate .qko and .🌿 files with Quokka", self.var_assoc), ("Install Joey ML Extension", self.var_joey)]:
             ctk.CTkCheckBox(comp_frame, text=txt, variable=var, fg_color=BTN_BG, hover_color=BTN_HOVER, checkmark_color="#FFF", text_color=TEXT_MAIN, font=("Segoe UI", 13)).pack(anchor="w", pady=6, padx=10)
         
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
@@ -249,7 +249,7 @@ class InstallerApp(ctk.CTk):
                 self.add_to_path(target_dir)
                 
             if self.var_assoc.get():
-                self.update_progress("Associating .qk files...", 0.8)
+                self.update_progress("Associating .qko and .🌿 files...", 0.8)
                 
             self.update_progress("All set! Wrapping up...", 1.0)
             time.sleep(0.8)

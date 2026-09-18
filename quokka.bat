@@ -1,2 +1,4 @@
 @echo off
-build\qk_bootstrap.exe src\quokka_interpreter.qk %*
+set QUOKKA_DIR=%~dp0
+"%QUOKKA_DIR%build\quokka_standalone.exe" %*
+
