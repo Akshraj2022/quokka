@@ -57,7 +57,8 @@ class InstallerApp(ctk.CTk):
             self.img_logo, self.img_sticker = None, None
             
         self.setup_ui()
-        self.animate_logo()
+        self.init_dots()
+        self.update_dots()
         self.cycle_facts()
         
     def setup_ui(self):
@@ -76,15 +77,30 @@ class InstallerApp(ctk.CTk):
         self.current_page = self.pages[name]
         self.current_page.pack(fill="both", expand=True)
 
-    def animate_logo(self):
-        # Sine wave bouncing effect
-        offset = math.sin(self.anim_time) * 8
-        if hasattr(self, "logo_lbl") and self.logo_lbl.winfo_exists():
-            self.logo_lbl.place(relx=0.5, y=50 + offset, anchor="n")
-        if hasattr(self, "sticker_lbl") and self.sticker_lbl.winfo_exists():
-            self.sticker_lbl.place(relx=0.5, y=60 + offset, anchor="n")
-        self.anim_time += 0.15
-        self.after(50, self.animate_logo)
+
+    def init_dots(self):
+        import random
+        self.dots = []
+        for _ in range(60):
+            size = random.choice([4, 6, 8])
+            x = random.randint(10, 590)
+            y = random.randint(10, 470)
+            dot = ctk.CTkFrame(self, width=size, height=size, corner_radius=size//2, fg_color="#4A3B32")
+            dot.place(x=x, y=y)
+            dot.lower()
+            self.dots.append({"widget": dot, "x": x + size/2, "y": y + size/2, "base": "#4A3B32", "glow": "#E49A68"})
+            
+    def update_dots(self):
+        import math
+        mx = self.winfo_pointerx() - self.winfo_rootx()
+        my = self.winfo_pointery() - self.winfo_rooty()
+        for dot in self.dots:
+            dist = math.hypot(dot["x"] - mx, dot["y"] - my)
+            if dist < 80:
+                dot["widget"].configure(fg_color=dot["glow"])
+            else:
+                dot["widget"].configure(fg_color=dot["base"])
+        self.after(30, self.update_dots)
 
     def cycle_facts(self):
         self.fact_index = (self.fact_index + 1) % len(QUOKKA_FACTS)
@@ -96,12 +112,12 @@ class InstallerApp(ctk.CTk):
         frame = ctk.CTkFrame(self.container, fg_color="transparent")
         
         # Logo frame for absolute placement animation
-        logo_area = ctk.CTkFrame(frame, height=200, fg_color="transparent")
+        logo_area = ctk.CTkFrame(frame, fg_color="transparent")
         logo_area.pack(fill="x", pady=(20, 0))
         
         if self.img_logo:
             self.logo_lbl = ctk.CTkLabel(logo_area, text="", image=self.img_logo)
-            self.logo_lbl.place(relx=0.5, y=50, anchor="n")
+            self.logo_lbl.pack(pady=10)
             
         ctk.CTkLabel(frame, text="Quokka", font=("Segoe UI", 42, "bold"), text_color=TEXT_ACCENT).pack(pady=(10, 0))
         ctk.CTkLabel(frame, text="Version 1.0.0 Setup", font=("Segoe UI", 16), text_color=TEXT_MUTED).pack()
@@ -158,12 +174,12 @@ class InstallerApp(ctk.CTk):
         frame = ctk.CTkFrame(self.container, fg_color="transparent")
         ctk.CTkLabel(frame, text="Installing Quokka...", font=("Segoe UI", 26, "bold"), text_color=TEXT_ACCENT).pack(pady=(30,10))
         
-        logo_area = ctk.CTkFrame(frame, height=200, fg_color="transparent")
+        logo_area = ctk.CTkFrame(frame, fg_color="transparent")
         logo_area.pack(fill="x", pady=10)
         
         if self.img_sticker:
             self.sticker_lbl = ctk.CTkLabel(logo_area, text="", image=self.img_sticker)
-            self.sticker_lbl.place(relx=0.5, y=60, anchor="n")
+            self.sticker_lbl.pack(pady=10)
         
         self.progress_lbl = ctk.CTkLabel(frame, text="Preparing to jump...", text_color=TEXT_MUTED, font=("Segoe UI", 14))
         self.progress_lbl.pack(pady=(30, 10))
