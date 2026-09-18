@@ -55,8 +55,8 @@ class QuokkaInstaller(Tk):
         
         # Load Assets
         try:
-            self.img_logo = ImageTk.PhotoImage(Image.open(resource_path("logo.png")).resize((120, 120)))
-            self.img_txtlogo = ImageTk.PhotoImage(Image.open(resource_path("txtlogo.png")).resize((200, 50)))
+            self.img_logo = ImageTk.PhotoImage(Image.open(resource_path("cfbl.png")).resize((120, 120)))
+            self.img_txtlogo = ImageTk.PhotoImage(Image.open(resource_path("txtcfbl.png")).resize((200, 50)))
             self.img_sticker = ImageTk.PhotoImage(Image.open(resource_path("sticker.jpg")).resize((150, 150)))
         except Exception as e:
             print("Error loading images:", e)

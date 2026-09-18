@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.png" alt="Quokka Logo" width="150" />
+  <img src="assets/cfbl.png" alt="Quokka Logo" width="150" />
   <h1>Quokka Programming Language</h1>
   <p><strong>A deterministic, strictly self-hosted language built for modern AI workflows.</strong></p>
 
