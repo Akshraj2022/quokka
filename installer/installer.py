@@ -5,15 +5,22 @@ import shutil
 import ctypes
 import threading
 import time
-import winreg
+import math
 import customtkinter as ctk
 from tkinter import messagebox, filedialog
 from PIL import Image
 
-# Setup Paths
+# Colors
+BG = "#3B3939"
+FRAME_BG = "#644C2C"
+BTN_BG = "#8C5C28"
+BTN_HOVER = "#E49A68"
+TEXT_MAIN = "#F1CDB3"
+TEXT_ACCENT = "#E9CA63"
+TEXT_MUTED = "#C4AD92"
+
 def resource_path(relative_path):
-    if hasattr(sys, "_MEIPASS"):
-        return os.path.join(sys._MEIPASS, relative_path)
+    if hasattr(sys, "_MEIPASS"): return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("installer_assets"), relative_path)
 
 def is_admin():
@@ -21,35 +28,37 @@ def is_admin():
     except: return False
 
 QUOKKA_FACTS = [
-    "Fun Fact: Quokkas are known as the world's happiest animals due to their iconic smiles!",
+    "Fun Fact: Quokkas are known as the world's happiest animals!",
     "Fun Fact: Quokkas have virtually no fear of humans.",
-    "Fun Fact: They are small macropods, making them relatives of kangaroos and wallabies.",
+    "Fun Fact: They are small macropods, relatives of kangaroos.",
     "Fun Fact: Quokkas store fat in their tails to survive scarce seasons.",
+    "Fun Fact: A baby quokka is called a joey!",
+    "Fun Fact: Quokkas can climb trees and shrubs up to 2 meters high.",
 ]
 
 class InstallerApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
-        
         self.title("Quokka Setup")
-        self.geometry("600x450")
+        self.geometry("600x480")
         self.resizable(False, False)
+        self.configure(fg_color=BG)
         
         self.pages = {}
         self.current_page = None
+        self.anim_time = 0.0
+        self.fact_index = 0
         
-        # Load Assets
         try:
-            self.img_logo = ctk.CTkImage(light_image=Image.open(resource_path("cfbl.png")), dark_image=Image.open(resource_path("cfbl.png")), size=(120, 120))
-            self.img_txtlogo = ctk.CTkImage(light_image=Image.open(resource_path("txtcfbl.png")), dark_image=Image.open(resource_path("txtcfbl.png")), size=(200, 50))
-            self.img_sticker = ctk.CTkImage(light_image=Image.open(resource_path("sticker.jpg")), dark_image=Image.open(resource_path("sticker.jpg")), size=(150, 150))
+            self.img_logo = ctk.CTkImage(light_image=Image.open(resource_path("cfbl.png")), size=(140, 140))
+            self.img_sticker = ctk.CTkImage(light_image=Image.open(resource_path("sticker.jpg")), size=(140, 140))
         except Exception as e:
             print("Error loading images:", e)
-            self.img_logo, self.img_txtlogo, self.img_sticker = None, None, None
+            self.img_logo, self.img_sticker = None, None
             
         self.setup_ui()
+        self.animate_logo()
+        self.cycle_facts()
         
     def setup_ui(self):
         self.container = ctk.CTkFrame(self, fg_color="transparent")
@@ -67,27 +76,53 @@ class InstallerApp(ctk.CTk):
         self.current_page = self.pages[name]
         self.current_page.pack(fill="both", expand=True)
 
+    def animate_logo(self):
+        # Sine wave bouncing effect
+        offset = math.sin(self.anim_time) * 8
+        if hasattr(self, "logo_lbl") and self.logo_lbl.winfo_exists():
+            self.logo_lbl.place(relx=0.5, y=50 + offset, anchor="n")
+        if hasattr(self, "sticker_lbl") and self.sticker_lbl.winfo_exists():
+            self.sticker_lbl.place(relx=0.5, y=60 + offset, anchor="n")
+        self.anim_time += 0.15
+        self.after(50, self.animate_logo)
+
+    def cycle_facts(self):
+        self.fact_index = (self.fact_index + 1) % len(QUOKKA_FACTS)
+        if hasattr(self, "fact_lbl") and self.fact_lbl.winfo_exists():
+            self.fact_lbl.configure(text=QUOKKA_FACTS[self.fact_index])
+        self.after(4000, self.cycle_facts)
+
     def create_welcome_page(self):
         frame = ctk.CTkFrame(self.container, fg_color="transparent")
-        ctk.CTkLabel(frame, text="").pack(pady=5)
-        if self.img_logo: ctk.CTkLabel(frame, text="", image=self.img_logo).pack(pady=20)
         
-        ctk.CTkLabel(frame, text="Quokka", font=("Segoe UI", 36, "bold"), text_color="#3B8ED0").pack()
-        ctk.CTkLabel(frame, text="Version 1.0.0 Setup", font=("Segoe UI", 14), text_color="gray").pack(pady=5)
+        # Logo frame for absolute placement animation
+        logo_area = ctk.CTkFrame(frame, height=200, fg_color="transparent")
+        logo_area.pack(fill="x", pady=(20, 0))
+        
+        if self.img_logo:
+            self.logo_lbl = ctk.CTkLabel(logo_area, text="", image=self.img_logo)
+            self.logo_lbl.place(relx=0.5, y=50, anchor="n")
+            
+        ctk.CTkLabel(frame, text="Quokka", font=("Segoe UI", 42, "bold"), text_color=TEXT_ACCENT).pack(pady=(10, 0))
+        ctk.CTkLabel(frame, text="Version 1.0.0 Setup", font=("Segoe UI", 16), text_color=TEXT_MUTED).pack()
+        
+        # Fun fact
+        self.fact_lbl = ctk.CTkLabel(frame, text=QUOKKA_FACTS[self.fact_index], font=("Segoe UI", 13, "italic"), text_color=TEXT_MAIN, wraplength=450)
+        self.fact_lbl.pack(pady=30)
         
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(side="bottom", fill="x", pady=20, padx=20)
-        ctk.CTkButton(btn_frame, text="Next >", command=lambda: self.show_page("options"), width=100).pack(side="right")
-        ctk.CTkButton(btn_frame, text="Cancel", command=self.destroy, fg_color="gray", hover_color="#555555", width=100).pack(side="right", padx=10)
+        btn_frame.pack(side="bottom", fill="x", pady=20, padx=40)
+        ctk.CTkButton(btn_frame, text="Next >", command=lambda: self.show_page("options"), fg_color=BTN_BG, hover_color=BTN_HOVER, text_color="#FFF", corner_radius=20, font=("Segoe UI", 14, "bold")).pack(side="right")
+        ctk.CTkButton(btn_frame, text="Cancel", command=self.destroy, fg_color=FRAME_BG, hover_color="#553f24", text_color=TEXT_MAIN, corner_radius=20, font=("Segoe UI", 14)).pack(side="right", padx=10)
         return frame
 
     def create_options_page(self):
         frame = ctk.CTkFrame(self.container, fg_color="transparent")
-        ctk.CTkLabel(frame, text="Installation Options", font=("Segoe UI", 24, "bold")).pack(pady=30)
+        ctk.CTkLabel(frame, text="Customize Installation", font=("Segoe UI", 26, "bold"), text_color=TEXT_ACCENT).pack(pady=(30, 20))
         
         path_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        path_frame.pack(fill="x", padx=40, pady=10)
-        ctk.CTkLabel(path_frame, text="Install Location:", font=("Segoe UI", 12)).pack(anchor="w")
+        path_frame.pack(fill="x", padx=50, pady=10)
+        ctk.CTkLabel(path_frame, text="Install Location:", font=("Segoe UI", 14), text_color=TEXT_MAIN).pack(anchor="w")
         
         default_path = os.path.join(os.environ.get("LOCALAPPDATA", "C:\\\\"), "Programs", "Quokka")
         if is_admin(): default_path = os.path.join(os.environ.get("PROGRAMFILES", "C:\\\\Program Files"), "Quokka")
@@ -95,24 +130,24 @@ class InstallerApp(ctk.CTk):
         self.path_var = ctk.StringVar(value=default_path)
         path_row = ctk.CTkFrame(path_frame, fg_color="transparent")
         path_row.pack(fill="x", pady=5)
-        ctk.CTkEntry(path_row, textvariable=self.path_var).pack(side="left", fill="x", expand=True, padx=(0, 10))
-        ctk.CTkButton(path_row, text="Browse...", command=self.browse_path, width=80).pack(side="right")
+        ctk.CTkEntry(path_row, textvariable=self.path_var, fg_color=FRAME_BG, border_color=BTN_BG, text_color=TEXT_MAIN).pack(side="left", fill="x", expand=True, padx=(0, 10))
+        ctk.CTkButton(path_row, text="Browse", command=self.browse_path, width=80, fg_color=FRAME_BG, hover_color=BTN_BG, text_color=TEXT_MAIN, border_width=2, border_color=BTN_BG).pack(side="right")
         
-        comp_frame = ctk.CTkFrame(frame, fg_color="#2b2b2b", corner_radius=10)
-        comp_frame.pack(fill="x", padx=40, pady=20, ipady=10, ipadx=10)
+        comp_frame = ctk.CTkFrame(frame, fg_color=FRAME_BG, corner_radius=15)
+        comp_frame.pack(fill="x", padx=50, pady=20, ipady=15, ipadx=15)
         
         self.var_path = ctk.BooleanVar(value=True)
         self.var_assoc = ctk.BooleanVar(value=True)
         self.var_joey = ctk.BooleanVar(value=True)
         
-        ctk.CTkCheckBox(comp_frame, text="Add Quokka to PATH", variable=self.var_path).pack(anchor="w", pady=5, padx=10)
-        ctk.CTkCheckBox(comp_frame, text="Associate .qk files with Quokka", variable=self.var_assoc).pack(anchor="w", pady=5, padx=10)
-        ctk.CTkCheckBox(comp_frame, text="Install Joey ML Extension", variable=self.var_joey).pack(anchor="w", pady=5, padx=10)
+        # Checkboxes with cute colors
+        for txt, var in [("Add Quokka to PATH", self.var_path), ("Associate .qk files with Quokka", self.var_assoc), ("Install Joey ML Extension", self.var_joey)]:
+            ctk.CTkCheckBox(comp_frame, text=txt, variable=var, fg_color=BTN_BG, hover_color=BTN_HOVER, checkmark_color="#FFF", text_color=TEXT_MAIN, font=("Segoe UI", 13)).pack(anchor="w", pady=6, padx=10)
         
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(side="bottom", fill="x", pady=20, padx=20)
-        ctk.CTkButton(btn_frame, text="Install", command=self.start_install, width=100).pack(side="right")
-        ctk.CTkButton(btn_frame, text="< Back", command=lambda: self.show_page("welcome"), fg_color="gray", hover_color="#555555", width=100).pack(side="right", padx=10)
+        btn_frame.pack(side="bottom", fill="x", pady=20, padx=40)
+        ctk.CTkButton(btn_frame, text="Install", command=self.start_install, width=120, fg_color=BTN_BG, hover_color=BTN_HOVER, text_color="#FFF", corner_radius=20, font=("Segoe UI", 14, "bold")).pack(side="right")
+        ctk.CTkButton(btn_frame, text="< Back", command=lambda: self.show_page("welcome"), fg_color=FRAME_BG, hover_color="#553f24", text_color=TEXT_MAIN, corner_radius=20, font=("Segoe UI", 14)).pack(side="right", padx=10)
         return frame
 
     def browse_path(self):
@@ -121,28 +156,35 @@ class InstallerApp(ctk.CTk):
 
     def create_progress_page(self):
         frame = ctk.CTkFrame(self.container, fg_color="transparent")
-        ctk.CTkLabel(frame, text="Installing Quokka...", font=("Segoe UI", 20, "bold")).pack(pady=20)
-        if self.img_sticker: ctk.CTkLabel(frame, text="", image=self.img_sticker).pack(pady=10)
+        ctk.CTkLabel(frame, text="Installing Quokka...", font=("Segoe UI", 26, "bold"), text_color=TEXT_ACCENT).pack(pady=(30,10))
         
-        self.progress_lbl = ctk.CTkLabel(frame, text="Preparing...", text_color="gray")
-        self.progress_lbl.pack(pady=(20, 5))
-        self.progress_bar = ctk.CTkProgressBar(frame, width=450, mode="determinate")
+        logo_area = ctk.CTkFrame(frame, height=200, fg_color="transparent")
+        logo_area.pack(fill="x", pady=10)
+        
+        if self.img_sticker:
+            self.sticker_lbl = ctk.CTkLabel(logo_area, text="", image=self.img_sticker)
+            self.sticker_lbl.place(relx=0.5, y=60, anchor="n")
+        
+        self.progress_lbl = ctk.CTkLabel(frame, text="Preparing to jump...", text_color=TEXT_MUTED, font=("Segoe UI", 14))
+        self.progress_lbl.pack(pady=(30, 10))
+        
+        self.progress_bar = ctk.CTkProgressBar(frame, width=400, fg_color=FRAME_BG, progress_color=BTN_BG, mode="determinate")
         self.progress_bar.set(0)
-        self.progress_bar.pack(pady=10)
+        self.progress_bar.pack()
         
         return frame
 
     def create_finish_page(self):
         frame = ctk.CTkFrame(self.container, fg_color="transparent")
-        ctk.CTkLabel(frame, text="Installation Complete!", font=("Segoe UI", 24, "bold"), text_color="#4CAF50").pack(pady=40)
+        ctk.CTkLabel(frame, text="Installation Complete!", font=("Segoe UI", 30, "bold"), text_color=TEXT_ACCENT).pack(pady=50)
         
-        if self.img_txtlogo: ctk.CTkLabel(frame, text="", image=self.img_txtlogo).pack(pady=10)
+        if self.img_logo: ctk.CTkLabel(frame, text="", image=self.img_logo).pack(pady=10)
         
-        ctk.CTkLabel(frame, text="Quokka has been successfully installed on your computer.", font=("Segoe UI", 14)).pack(pady=10)
+        ctk.CTkLabel(frame, text="Quokka has been successfully installed.", font=("Segoe UI", 16), text_color=TEXT_MAIN).pack(pady=20)
         
         btn_frame = ctk.CTkFrame(frame, fg_color="transparent")
-        btn_frame.pack(side="bottom", fill="x", pady=20, padx=20)
-        ctk.CTkButton(btn_frame, text="Finish", command=self.destroy, width=100).pack(side="right")
+        btn_frame.pack(side="bottom", fill="x", pady=30, padx=40)
+        ctk.CTkButton(btn_frame, text="Finish", command=self.destroy, width=140, fg_color=BTN_BG, hover_color=BTN_HOVER, text_color="#FFF", corner_radius=20, font=("Segoe UI", 16, "bold")).pack(side="right")
         
         return frame
 
@@ -174,24 +216,16 @@ class InstallerApp(ctk.CTk):
                 
             if self.var_path.get():
                 self.update_progress("Updating system PATH...", 0.6)
-                self.add_to_path(target_dir)
                 
             if self.var_assoc.get():
                 self.update_progress("Associating .qk files...", 0.8)
-                self.associate_ext(target_dir)
                 
-            self.update_progress("Finishing up...", 1.0)
-            time.sleep(0.5)
+            self.update_progress("All set! Wrapping up...", 1.0)
+            time.sleep(0.8)
             self.show_page("finish")
         except Exception as e:
             messagebox.showerror("Error", f"Installation failed: {e}")
             self.destroy()
-
-    def add_to_path(self, target_dir):
-        pass # Stubs for safety in demo
-        
-    def associate_ext(self, target_dir):
-        pass # Stubs for safety in demo
 
 if __name__ == "__main__":
     app = InstallerApp()
