@@ -3,9 +3,11 @@
   <h1>Quokka Programming Language</h1>
   <p><strong>A deterministic, strictly self-hosted language built for modern AI workflows.</strong></p>
 
-  [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)]()
+  <p><a href="https://quokka.space">?? Visit quokka.space</a></p>
+
+  [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://quokka.space)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-  [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)]()
+  [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://quokka.space)
 </div>
 
 <br/>

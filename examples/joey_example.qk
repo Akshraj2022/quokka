@@ -102,3 +102,15 @@ fn pipeline() {
     // We will just expose them.
     return [load_model, qlora, dataset, train, save, run]
 }
+
+let p = pipeline()
+p[0]("meta-llama/Llama-3-8B", "4bit")
+p[1](16, 32, 0.05)
+p[2]("quokka_data", 512)
+p[3](3, 0.0002, 4, 4)
+p[4]("./joey_quokka_model")
+let res = p[5]()
+match res {
+    Ok(v) => println("Joey run success!"),
+    Err(e) => println("Error: " ++ e)
+}

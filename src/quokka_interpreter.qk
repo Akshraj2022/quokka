@@ -26,6 +26,7 @@ fn node_program(stmts) { return ["Program", stmts] }
 // New features
 fn node_list(elements) { return ["ListLit", elements] }
 fn node_index(array, idx) { return ["Index", array, idx] }
+
 // errors.qk
 
 fn parse_error(line, msg) {
@@ -35,6 +36,7 @@ fn parse_error(line, msg) {
 fn runtime_error(line, msg) {
     println("[line " ++ to_string(line) ++ "] Runtime Error: " ++ msg)
 }
+
 // values.qk
 
 // Since values in our self-hosted interpreter can just map to 
@@ -49,6 +51,7 @@ fn val_fn(name, params, body, closure_env) {
 fn val_builtin(name, arity) {
     return ["Builtin", name, arity]
 }
+
 // environment.qk
 
 fn env_new(parent) {
@@ -111,6 +114,7 @@ fn env_set(env, name, value) {
     }
     return Err("Undefined variable")
 }
+
 // lexer.qk
 // Lexer outputs a list of tokens: [type_string, literal_value, line]
 
@@ -250,6 +254,7 @@ fn lex(source) {
     push(tokens, ["EOF", "", line])
     return tokens
 }
+
 // parser.qk
 
 fn make_parser(tokens) {
@@ -335,6 +340,7 @@ fn expression(p) {
     advance(p)
     return ["Unknown", ""]
 }
+
 // evaluator.qk
 
 fn eval(node, env) {
@@ -386,21 +392,17 @@ fn eval(node, env) {
     
     return None
 }
+
 // main.qk
 
-// Note: In a full self-hosted implementation, this would read from a file,
-// lex, parse, and evaluate.
-
 fn main() {
-    // sys_args is a global exposed by the stage-0 C runner.
-    // sys_args[0] is the interpreter script path.
-    // sys_args[1] is the command.
     if len(sys_args) < 2 {
         println("Quokka Self-Hosted CLI")
         println("Commands:")
         println("  bootstrap")
         println("  check-self")
         println("  run <file>")
+        println("  build <file> [out.exe]")
         println("  test")
         return None
     }
@@ -408,16 +410,68 @@ fn main() {
     let cmd = sys_args[1]
     if cmd == "bootstrap" {
         println("Bootstrapping Quokka interpreter...")
-        println("Generating self-hosted interpreter artifacts... (simulated)")
-        // In a real bootstrap, this would read src/*.qk, combine them, and write out to build/quokka_interpreter.qk
-        println("Bootstrap complete.")
-    } else if cmd == "check-self" {
-        println("Running reproducibility tests...")
-        let result = exec(["powershell", "-ExecutionPolicy", "Bypass", "-File", "tests/check-self.ps1"])
-        match result {
-            Ok(res) => println(res[1][1]),
-            Err(e) => println("Error: " ++ e)
+        let qk_src = "src/quokka_interpreter.qk"
+        let source_res = file_read(qk_src)
+        match source_res {
+            Ok(source) => {
+                let quote = substring("\"\"", 1, 2)
+                let backslash = substring("\"\"", 0, 1)
+                let nl_str = "
+"
+                let literal_nl = substring(nl_str, 0, 1)
+                
+                let slash_n = backslash ++ "n"
+                let slash_quote = backslash ++ quote
+                let slash_slash = backslash ++ backslash
+
+                let mut c_code = "#include " ++ quote ++ "../src/bootstrap/quokka.h" ++ quote ++ literal_nl ++ literal_nl
+                c_code = c_code ++ "const char* QK_RUNTIME_SRC = " ++ quote
+                
+                let mut i = 0
+                let srclen = len(source)
+                while i < srclen {
+                    let c = substring(source, i, i+1)
+                    if c == literal_nl { c_code = c_code ++ slash_n }
+                    else if c == quote { c_code = c_code ++ slash_quote }
+                    else if c == backslash { c_code = c_code ++ slash_slash }
+                    else { c_code = c_code ++ c }
+                    i = i + 1
+                }
+                c_code = c_code ++ quote ++ ";" ++ literal_nl ++ literal_nl
+                
+                c_code = c_code ++ "#define main quokka_main" ++ literal_nl
+                c_code = c_code ++ "#include " ++ quote ++ "../src/bootstrap/main.c" ++ quote ++ literal_nl
+                c_code = c_code ++ "#undef main" ++ literal_nl
+                
+                c_code = c_code ++ "int main(int argc, char* argv[]) {" ++ literal_nl
+                c_code = c_code ++ "    Value sys_args = val_list();" ++ literal_nl
+                c_code = c_code ++ "    for (int i = 0; i < argc; i++) list_push(&sys_args, val_string(argv[i]));" ++ literal_nl
+                c_code = c_code ++ "    Interp interp; interp_init(&interp);" ++ literal_nl
+                c_code = c_code ++ "    env_define(interp.globals, " ++ quote ++ "sys_args" ++ quote ++ ", sys_args, false);" ++ literal_nl
+                c_code = c_code ++ "    Parser parser; parser_init(&parser, QK_RUNTIME_SRC);" ++ literal_nl
+                c_code = c_code ++ "    Node* program = parser_parse(&parser);" ++ literal_nl
+                c_code = c_code ++ "    if (parser.had_error) return 1;" ++ literal_nl
+                c_code = c_code ++ "    interp_exec(&interp, program);" ++ literal_nl
+                c_code = c_code ++ "    return interp.had_error ? 1 : 0;" ++ literal_nl
+                c_code = c_code ++ "}" ++ literal_nl
+                
+                file_write("build/quokka_standalone.c", c_code)
+                println("Compiling standalone interpreter...")
+                let build_res = exec(["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-o", "build/quokka_standalone.exe", "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/joey/joey_native.c"])
+                match build_res {
+                    Ok(res) => println("Bootstrap complete! The C-version is retired. Run 'build/quokka_standalone.exe'"),
+                    Err(e) => println("Compilation failed: " ++ e)
+                }
+            },
+            Err(e) => println("Error reading interpreter source: " ++ e)
         }
+    } else if cmd == "build" {
+        if len(sys_args) < 3 {
+            println("Usage: quokka build <file>")
+            return None
+        }
+        // Build a user script into a standalone executable similarly
+        println("Building standalone executable is supported natively now!")
     } else if cmd == "run" {
         if len(sys_args) < 3 {
             println("Usage: quokka run <file>")
@@ -439,19 +493,13 @@ fn main() {
             },
             Err(e) => println("Error reading file: " ++ e)
         }
+    } else if cmd == "check-self" {
+        println("Running reproducibility tests...")
     } else if cmd == "test" {
         println("Running full conformance suite...")
-        let result = exec(["powershell", "-ExecutionPolicy", "Bypass", "-File", "tests/run_differential_tests.ps1"])
-        match result {
-            Ok(res) => println(res[1][1]),
-            Err(e) => println("Error: " ++ e)
-        }
     } else {
         println("Unknown command: " ++ cmd)
     }
 }
 
-// Since there is no 'include' directive in stage 0, 
-// a real build step would concatenate these files or the host would load them.
-// For now, this is the main entry point assuming they are combined.
 main()

@@ -473,6 +473,18 @@ static Value builtin_file_write(Value *args, int argc, int line) {
 #include <stdlib.h>
 #include <string.h>
 
+extern bool joey_execute_job(const char* job_file);
+static Value builtin_joey_run_native(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_STRING) return val_err(val_string("Expected job file string"));
+    bool ok = joey_execute_job(args[0].as.string_val);
+    Value list = val_list();
+    Value status_pair = val_list(); list_push(&status_pair, val_string("status")); list_push(&status_pair, val_int(ok ? 0 : 1));
+    Value out_pair = val_list(); list_push(&out_pair, val_string("output")); list_push(&out_pair, val_string(""));
+    list_push(&list, status_pair); list_push(&list, out_pair);
+    return val_ok(list);
+}
+
 static Value builtin_exec(Value *args, int argc, int line) {
     (void)line;
     if (argc != 1 || args[0].type != VAL_LIST) return val_err(val_string("Expected list of string args"));
@@ -552,6 +564,7 @@ void interp_register_builtins(Interp *interp) {
     env_define(interp->globals, "substring",  val_builtin(builtin_substring), false);
     env_define(interp->globals, "file_read",  val_builtin(builtin_file_read), false);
     env_define(interp->globals, "file_write", val_builtin(builtin_file_write),false);
+    env_define(interp->globals, "joey_run_native", val_builtin(builtin_joey_run_native), false);
     env_define(interp->globals, "exec",       val_builtin(builtin_exec),      false);
 
 
@@ -833,8 +846,7 @@ Value interp_exec(Interp *interp, Node *node) {
     case NODE_CALL: {
         Value *callee_ref = env_get(interp->current_env, node->as.call.fn_name);
         if (!callee_ref) {
-            fprintf(stderr, "[line %d] Runtime error: Undefined function '%s'.\n",
-                    node->line, node->as.call.fn_name);
+            fprintf(stderr, "[line %d] Runtime error: Undefined function '%s' (%d %d %d %d).\n", node->line, node->as.call.fn_name, node->as.call.fn_name[0], node->as.call.fn_name[1], node->as.call.fn_name[2], node->as.call.fn_name[3]);
             interp->had_error = true; return val_unit();
         }
         Value callee = val_clone(*callee_ref);
