@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quokka - The only language that has to prove it understands itself.</title>
+<style>
+:root {
+  --bg-color: #0d1117;
+  --text-color: #c9d1d9;
+  --accent-color: #f0883e;
+  --accent-hover: #ff9955;
+  --card-bg: #161b22;
+  --code-bg: #010409;
+  --border-color: #30363d;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+}
+a {
+  color: var(--accent-color);
+  text-decoration: none;
+  transition: color 0.2s, text-shadow 0.2s;
+}
+a:hover {
+  color: var(--accent-hover);
+}
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0;
+}
+.logo {
+  height: 40px;
+}
+.hero {
+  text-align: center;
+  padding: 80px 0;
+}
+h1 {
+  font-size: 3rem;
+  color: #fff;
+  margin-bottom: 20px;
+  line-height: 1.2;
+}
+.subhead {
+  font-size: 1.25rem;
+  max-width: 700px;
+  margin: 0 auto 40px auto;
+  color: #8b949e;
+}
+.btn {
+  display: inline-block;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 0 10px;
+}
+.btn-primary {
+  background-color: var(--accent-color);
+  color: #000;
+}
+.btn-primary:hover {
+  background-color: var(--accent-hover);
+  box-shadow: 0 0 15px rgba(240, 136, 62, 0.4);
+  color: #000;
+}
+.btn-secondary {
+  background-color: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+}
+.btn-secondary:hover {
+  border-color: #8b949e;
+  color: #fff;
+}
+.code-block {
+  background: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  text-align: left;
+  max-width: 600px;
+  margin: 40px auto 0 auto;
+  overflow-x: auto;
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.code-block:hover {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 15px rgba(240, 136, 62, 0.2);
+}
+.keyword { color: #ff7b72; }
+.string { color: #a5d6ff; }
+.function { color: #d2a8ff; }
+
+/* Features Section */
+.features {
+  padding: 60px 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+.feature-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 24px;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.feature-card.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.feature-card h3 {
+  color: #fff;
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+.feature-card p {
+  font-size: 0.95rem;
+  color: #8b949e;
+  margin-bottom: 0;
+}
+.icon {
+  font-size: 1.5rem;
+  margin-bottom: 15px;
+}
+
+/* Prove It Section */
+.prove-it {
+  padding: 80px 0;
+}
+.prove-it h2, .joey h2, .get-started h2 {
+  color: #fff;
+  font-size: 2rem;
+  margin-bottom: 20px;
+  text-align: center;
+}
+.prove-it p, .joey p, .get-started p {
+  text-align: center;
+  max-width: 700px;
+  margin: 0 auto 30px auto;
+  font-size: 1.1rem;
+}
+.terminal-block {
+  background: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  max-width: 600px;
+  margin: 0 auto;
+  color: #8b949e;
+  min-height: 150px;
+}
+.terminal-line {
+  display: none;
+}
+
+/* Joey Section */
+.joey {
+  padding: 80px 0;
+  background-color: var(--card-bg);
+  border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
+}
+.architecture {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  margin: 40px 0;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--accent-color);
+}
+.box {
+  border: 1px solid var(--border-color);
+  padding: 10px 15px;
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: #c9d1d9;
+}
+
+/* Get Started */
+.get-started {
+  padding: 80px 0;
+  text-align: center;
+}
+.steps {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  flex-wrap: wrap;
+  margin-top: 40px;
+}
+.step {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  width: 250px;
+  text-align: left;
+}
+.step-num {
+  color: var(--accent-color);
+  font-weight: bold;
+  font-size: 1.2rem;
+  margin-bottom: 10px;
+}
+
+/* Footer */
+footer {
+  text-align: center;
+  padding: 40px 0;
+  border-top: 1px solid var(--border-color);
+  margin-top: 40px;
+  font-size: 0.9rem;
+}
+.footer-links {
+  margin-bottom: 20px;
+}
+.footer-links a {
+  margin: 0 10px;
+}
+.tagline {
+  color: #8b949e;
+}
+
+@media (max-width: 768px) {
+  h1 { font-size: 2.2rem; }
+  .btn { display: block; margin: 10px auto; width: 200px; text-align: center; }
+  .architecture { flex-direction: column; }
+}
+
+/* Typewriter cursor */
+.cursor {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  background-color: var(--text-color);
+  animation: blink 1s step-end infinite;
+  vertical-align: middle;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <img src="../assets/cfbl.png" alt="Quokka Logo" class="logo" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'40\' height=\'40\' viewBox=\'0 0 40 40\'%3E%3Ccircle cx=\'20\' cy=\'20\' r=\'18\' fill=\'none\' stroke=\'%23f0883e\' stroke-width=\'4\'/%3E%3C/svg%3E'">
+  </header>
+
+  <section class="hero">
+    <h1>The only language that has to prove it understands itself.</h1>
+    <p class="subhead">Quokka's compiler is written entirely in Quokka — and it cryptographically verifies its own bootstrap on every build.</p>
+    <div>
+      <a href="#" class="btn btn-primary">Download for Windows</a>
+      <a href="https://github.com/quokka-lang/quokka" class="btn btn-secondary">View on GitHub</a>
+    </div>
+    
+    <div class="code-block" id="hero-code">
+      <span id="typewriter"></span><span class="cursor"></span>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <div class="feature-card">
+      <div class="icon">🔄</div>
+      <h3>Self-hosting</h3>
+      <p>Strictly self-hosted. The lexer, parser, and evaluator are written in Quokka itself — verified by <code>quokka check-self</code>, not just claimed.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🛡️</div>
+      <h3>Determinism</h3>
+      <p>No exceptions. No undefined behavior. <code>Result</code> and <code>match</code>, all the way down.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🔒</div>
+      <h3>Immutability</h3>
+      <p><code>let</code> means it. Mutation and shadowing are opt-in, not default.</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🪟</div>
+      <h3>Windows First</h3>
+      <p>Custom GUI installer, automatic <code>.qk</code> file association, and a VS Code syntax-highlighting extension out of the box.</p>
+    </div>
+  </section>
+
+  <section class="prove-it">
+    <h2>Prove it.</h2>
+    <p>A minimal C bootstrap (~2,150 lines) boots Stage 0, which runs the canonical Stage 1 interpreter written in Quokka. <code>quokka check-self</code> re-bootstraps through multiple stages and asserts cryptographic hashes match.</p>
+    <div class="terminal-block" id="terminal">
+      <div class="terminal-line" style="color: #fff">> quokka check-self</div>
+      <div class="terminal-line">Bootstrapping Stage 0 (C core)...</div>
+      <div class="terminal-line">Parsing Stage 1 (Quokka core)...</div>
+      <div class="terminal-line">Evaluating Stage 2 AST...</div>
+      <div class="terminal-line">Hashing Stage 1 Output: a3b9c8...</div>
+      <div class="terminal-line">Hashing Stage 2 Output: a3b9c8...</div>
+      <div class="terminal-line" style="color: #3fb950">✓ Hashes match. Self-hosting verified.</div>
+    </div>
+  </section>
+</div>
+
+<section class="joey">
+  <div class="container">
+    <h2>Joey ML Extension</h2>
+    <p>Fine-tune Llama-3 with LoRA in a few lines, via Unsloth — orchestrated through a secure, isolated process boundary. Joey currently transpiles and orchestrates via a Python backend. Python is never embedded in the Quokka core, but spawned as a separate process (a fully native runtime is in progress).</p>
+    
+    <div class="architecture">
+      <div class="box">Quokka (.qk)</div>
+      <div>→ JSON Manifest →</div>
+      <div class="box">Python/Unsloth Process</div>
+      <div>→ Result →</div>
+      <div class="box">Quokka</div>
+    </div>
+
+    <div class="code-block">
+<span class="keyword">let</span> model_res = joey.load_model(<span class="string">"llama-3-8b"</span>);
+<span class="keyword">match</span> model_res {
+    Ok(model) => {
+        <span class="keyword">let</span> tune_res = model.train_lora();
+        <span class="keyword">match</span> tune_res {
+            Ok(_) => print(<span class="string">"Tuning complete!"</span>),
+            Err(e) => print(e)
+        }
+    },
+    Err(e) => print(e)
+}
+    </div>
+  </div>
+</section>
+
+<div class="container">
+  <section class="get-started">
+    <h2>Get Started</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <p>Download <code>Quokka-Setup.exe</code> from GitHub Releases.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <p>Run the Windows installer to set up paths and file associations.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <p>Run <code>quokka run hello.qk</code> in your terminal.</p>
+      </div>
+    </div>
+    <div style="margin-top: 30px;">
+      <a href="#" class="btn btn-secondary">Read the Docs</a>
+    </div>
+  </section>
+
+  <footer>
+    <img src="../assets/cfbl.png" alt="Quokka Logo" class="logo" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'10\' fill=\'none\' stroke=\'%23f0883e\' stroke-width=\'2\'/%3E%3C/svg%3E'" style="height: 24px; margin-bottom: 20px;">
+    <div class="footer-links">
+      <a href="https://github.com/quokka-lang/quokka">GitHub</a>
+      <a href="https://github.com/quokka-lang/quokka/blob/main/LICENSE">MIT License</a>
+      <a href="https://github.com/quokka-lang/quokka/blob/main/CONTRIBUTING.md">Contributing</a>
+    </div>
+    <p class="tagline">Built to prove itself, not just claim it.</p>
+  </footer>
+</div>
+
+<script>
+// Typewriter effect
+const codeToType = `let message = "Hello, Quokka!";
+print(message);
+`;
+const twElement = document.getElementById('typewriter');
+let i = 0;
+
+// simple syntax highlighting logic for typewriter
+function formatToken(text) {
+  let out = text.replace(/let/g, '<span class="keyword">let</span>')
+                .replace(/print/g, '<span class="function">print</span>')
+                .replace(/"Hello, Quokka!"/g, '<span class="string">"Hello, Quokka!"</span>');
+  return out;
+}
+
+let currentText = "";
+setTimeout(() => {
+  const interval = setInterval(() => {
+    currentText += codeToType[i];
+    twElement.innerHTML = formatToken(currentText);
+    i++;
+    if (i >= codeToType.length) clearInterval(interval);
+  }, 50);
+}, 500);
+
+// Scroll reveal
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      
+      // Trigger terminal animation if it's the prove-it section
+      if(entry.target.id === 'terminal-trigger') {
+        playTerminal();
+      }
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.feature-card').forEach(card => {
+  observer.observe(card);
+});
+
+// Terminal animation
+const terminalTrigger = document.querySelector('.prove-it');
+terminalTrigger.id = 'terminal-trigger';
+observer.observe(terminalTrigger);
+
+let terminalPlayed = false;
+function playTerminal() {
+  if(terminalPlayed) return;
+  terminalPlayed = true;
+  
+  const lines = document.querySelectorAll('.terminal-line');
+  let delay = 0;
+  
+  lines.forEach((line, index) => {
+    setTimeout(() => {
+      line.style.display = 'block';
+    }, delay);
+    delay += (index === 0 ? 600 : (index === lines.length - 1 ? 800 : 400));
+  });
+}
+</script>
+</body>
+</html>
