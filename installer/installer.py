@@ -2,7 +2,11 @@ import sys
 import os
 import zipfile
 import shutil
-import ctypes
+try:
+    import ctypes
+except ImportError:
+    ctypes = None
+
 import threading
 import time
 import math
@@ -24,8 +28,13 @@ def resource_path(relative_path):
     return os.path.join(os.path.abspath("installer_assets"), relative_path)
 
 def is_admin():
-    try: return ctypes.windll.shell32.IsUserAnAdmin()
-    except: return False
+    try:
+        if os.name == 'nt' and ctypes:
+            return ctypes.windll.shell32.IsUserAnAdmin()
+        else:
+            return os.geteuid() == 0
+    except:
+        return False
 
 QUOKKA_FACTS = [
     "Fun Fact: Quokkas are known as the world's happiest animals!",
@@ -140,8 +149,13 @@ class InstallerApp(ctk.CTk):
         path_frame.pack(fill="x", padx=50, pady=10)
         ctk.CTkLabel(path_frame, text="Install Location:", font=("Segoe UI", 14), text_color=TEXT_MAIN).pack(anchor="w")
         
-        default_path = os.path.join(os.environ.get("LOCALAPPDATA", "C:\\\\"), "Programs", "Quokka")
-        if is_admin(): default_path = os.path.join(os.environ.get("PROGRAMFILES", "C:\\\\Program Files"), "Quokka")
+        if os.name == 'nt':
+            default_path = os.path.join(os.environ.get("LOCALAPPDATA", "C:\\\\"), "Programs", "Quokka")
+            if is_admin(): default_path = os.path.join(os.environ.get("PROGRAMFILES", "C:\\\\Program Files"), "Quokka")
+        elif sys.platform == 'darwin':
+            default_path = "/Applications/Quokka" if is_admin() else os.path.expanduser("~/Applications/Quokka")
+        else:
+            default_path = "/opt/quokka" if is_admin() else os.path.expanduser("~/.local/share/quokka")
             
         self.path_var = ctk.StringVar(value=default_path)
         path_row = ctk.CTkFrame(path_frame, fg_color="transparent")
