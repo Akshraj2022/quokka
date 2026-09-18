@@ -246,6 +246,7 @@ class InstallerApp(ctk.CTk):
                 
             if self.var_path.get():
                 self.update_progress("Updating system PATH...", 0.6)
+                self.add_to_path(target_dir)
                 
             if self.var_assoc.get():
                 self.update_progress("Associating .qk files...", 0.8)
@@ -256,6 +257,38 @@ class InstallerApp(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Error", f"Installation failed: {e}")
             self.destroy()
+
+
+    def add_to_path(self, target_dir):
+        import os
+        if os.name == 'nt':
+            try:
+                import winreg, ctypes
+                key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment", 0, winreg.KEY_ALL_ACCESS)
+                try: path, _ = winreg.QueryValueEx(key, "Path")
+                except: path = ""
+                if target_dir not in path:
+                    new_path = path + (";" if path and not path.endswith(";") else "") + target_dir
+                    winreg.SetValueEx(key, "Path", 0, winreg.REG_EXPAND_SZ, new_path)
+                    HWND_BROADCAST = 0xFFFF
+                    WM_SETTINGCHANGE = 0x001A
+                    SMTO_ABORTIFHUNG = 0x0002
+                    res = ctypes.c_long()
+                    ctypes.windll.user32.SendMessageTimeoutW(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "Environment", SMTO_ABORTIFHUNG, 5000, ctypes.byref(res))
+            except Exception as e:
+                print("Failed to add to PATH:", e)
+        else:
+            try:
+                export_line = f'\nexport PATH="$PATH:{target_dir}"\n'
+                for rc_file in [".bashrc", ".zshrc"]:
+                    rc_path = os.path.expanduser(f"~/{rc_file}")
+                    if os.path.exists(rc_path):
+                        with open(rc_path, "r") as f:
+                            content = f.read()
+                        if target_dir not in content:
+                            with open(rc_path, "a") as fw: fw.write(export_line)
+            except Exception as e:
+                print("Failed Unix PATH:", e)
 
 if __name__ == "__main__":
     app = InstallerApp()
