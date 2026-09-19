@@ -1,4 +1,4 @@
-// main.qk
+// main.qka
 
 fn main() {
     if len(sys_args) < 2 {
@@ -15,7 +15,7 @@ fn main() {
     let cmd = sys_args[1]
     if cmd == "bootstrap" {
         println("Bootstrapping Quokka interpreter...")
-        let qk_src = "src/quokka_interpreter.qk"
+        let qk_src = "src/quokka_interpreter.qka"
         let source_res = file_read(qk_src)
         match source_res {
             Ok(source) => {
