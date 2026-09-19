@@ -7,7 +7,7 @@
 
   [![Version](https://img.shields.io/badge/version-v0.2.0-blue.svg)](https://quokka.space)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-  [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey.svg)](https://quokka.space)
+  [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://quokka.space)
 </div>
 
 <br/>
@@ -41,6 +41,12 @@ Quokka is natively supported on Apple Silicon (arm64) macOS via Homebrew.
 brew install akshraj2022/quokka/quokka
 ```
 *(Note: Joey's CUDA-accelerated ML features are not available on macOS hardware.)*
+
+**Linux (Ubuntu / x86_64)**
+Quokka is distributed as a standalone tarball for Linux.
+1. Download `quokka-linux-x64.tar.gz` from the [Releases](https://github.com/Akshraj2022/quokka/releases) page.
+2. Extract the archive: `tar -xzf quokka-linux-x64.tar.gz`
+3. Add the extracted folder to your `PATH`.
 
 ### Writing your first Quokka script
 
