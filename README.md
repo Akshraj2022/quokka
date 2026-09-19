@@ -35,11 +35,15 @@ Quokka is distributed as a standalone zip archive containing the `quokka.exe` bi
 4. Open a new terminal and type `quokka`.
 *(Note: If you want VS Code syntax highlighting, you must manually install the extension from `editors/vscode`.)*
 
-**macOS (Apple Silicon)**
-Quokka is natively supported on Apple Silicon (arm64) macOS via Homebrew.
+**macOS (Apple Silicon & Intel)**
+Quokka is natively supported on both Apple Silicon (arm64) and Intel (x86_64) macOS.
+
+For Apple Silicon, you can use Homebrew:
 ```bash
 brew install akshraj2022/quokka/quokka
 ```
+
+For Intel Macs, or as a manual alternative, download the respective tarball (`quokka-macos-x64.tar.gz` or `quokka-macos-arm64.tar.gz`) from the [Releases](https://github.com/Akshraj2022/quokka/releases) page, extract it, and add it to your `PATH`.
 *(Note: Joey's CUDA-accelerated ML features are not available on macOS hardware.)*
 
 **Linux (Ubuntu / x86_64)**
