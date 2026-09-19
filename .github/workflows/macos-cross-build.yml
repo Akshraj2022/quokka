@@ -1,0 +1,43 @@
+name: macOS Cross-Build (Intel)
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-macos-x64-cross:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v1
+        with:
+          version: 0.13.0
+
+      - name: Compile C bootstrap for macOS Intel (Cross-compile)
+        run: |
+          mkdir -p build
+          zig cc -target x86_64-macos -std=c11 src/bootstrap/*.c src/joey/joey_native.c -o build/qk_bootstrap
+
+      - name: Verify Stage 0 binary architecture
+        run: file build/qk_bootstrap | grep -q "Mach-O 64-bit x86_64" || (echo "Build is not macOS x86_64" && exit 1)
+
+      - name: Package as tarball
+        if: success()
+        run: |
+          mkdir -p dist/quokka-macos-x64
+          cp build/qk_bootstrap dist/quokka-macos-x64/quokka
+          cp -r src dist/quokka-macos-x64/
+          cp LICENSE README.md dist/quokka-macos-x64/
+          tar -czf quokka-macos-x64.tar.gz -C dist quokka-macos-x64
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quokka-macos-x64
+          path: quokka-macos-x64.tar.gz
+
