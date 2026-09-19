@@ -16,7 +16,7 @@ jobs:
       - name: Compile C bootstrap (Stage 0)
         run: |
           mkdir -p build
-          clang -std=c11 -arch arm64 src/bootstrap/*.c -o build/qk_bootstrap
+          clang -std=c11 -arch arm64 src/bootstrap/*.c src/joey/joey_native.c -o build/qk_bootstrap
 
       - name: Verify Stage 0 binary architecture
         run: file build/qk_bootstrap | grep -q "arm64" || (echo "Build is not arm64" && exit 1)
