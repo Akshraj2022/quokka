@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
 
     Interp interp;
     interp_init(&interp);
-    env_define(interp.globals, "sys_args", sys_args, false);
+    env_define(interp.globals, "sys_args", sys_args, true);
 
     /* Parse */
     Parser parser;

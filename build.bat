@@ -10,7 +10,7 @@ if not exist "build" mkdir build
 
 gcc -std=c11 -Wall -Wextra -Wno-unused-parameter ^
     -o build\quokka.exe ^
-    src\bootstrap\main.c src\bootstrap\lexer.c src\bootstrap\parser.c src\bootstrap\interpreter.c
+    src\bootstrap\main.c src\bootstrap\lexer.c src\bootstrap\parser.c src\bootstrap\interpreter.c src\bootstrap\sha256.c src\joey\joey_native.c
 
 if %ERRORLEVEL% EQU 0 (
     echo.

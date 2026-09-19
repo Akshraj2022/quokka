@@ -542,6 +542,150 @@ static Value builtin_list_set(Value *args, int argc, int line) {
 }
 
 
+#include "sha256.h"
+
+
+
+static Value val_ast_node(Node *node) {
+    Value v; v.type = VAL_AST_NODE; v.as.ast_node = node; return v;
+}
+
+static Value builtin_parse_native(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_STRING) return val_unit();
+    Parser parser;
+    parser_init(&parser, args[0].as.string_val);
+    Node *program = parser_parse(&parser);
+    if (parser.had_error) return val_unit();
+    return val_ast_node(program);
+}
+
+extern Value interp_exec(Interp *interp, Node *node);
+
+static Value builtin_eval_native(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_AST_NODE) return val_unit();
+    return interp_exec(current_interp, args[0].as.ast_node);
+}
+
+static void serialize_node(Node *node, char *buf) {
+    if (!node) { strcat(buf, "None"); return; }
+    strcat(buf, "[");
+    char num[32];
+    sprintf(num, "%d", node->type);
+    strcat(buf, num);
+    strcat(buf, ",");
+    if (node->type == NODE_STRING_LIT) {
+        strcat(buf, "\"");
+        strcat(buf, node->as.string_val);
+        strcat(buf, "\"");
+    } else if (node->type == NODE_INT_LIT) {
+        sprintf(num, "%lld", (long long)node->as.int_val);
+        strcat(buf, num);
+    } else if (node->type == NODE_IDENT) {
+        strcat(buf, "\"");
+        strcat(buf, node->as.name);
+        strcat(buf, "\"");
+    } else if (node->type == NODE_BLOCK) {
+        for (int i = 0; i < node->as.block.stmts.count; i++) {
+            serialize_node(node->as.block.stmts.items[i], buf);
+            if (i < node->as.block.stmts.count - 1) strcat(buf, ",");
+        }
+    } else if (node->type == NODE_PROGRAM) {
+        for (int i = 0; i < node->as.program.count; i++) {
+            serialize_node(node->as.program.items[i], buf);
+            if (i < node->as.program.count - 1) strcat(buf, ",");
+        }
+    } else if (node->type == NODE_LET) {
+        strcat(buf, "\"");
+        strcat(buf, node->as.let_bind.name);
+        strcat(buf, "\",");
+        serialize_node(node->as.let_bind.value, buf);
+    } else if (node->type == NODE_IF) {
+        serialize_node(node->as.if_expr.cond, buf);
+        strcat(buf, ",");
+        serialize_node(node->as.if_expr.then_b, buf);
+    } else if (node->type == NODE_CALL) {
+        strcat(buf, "\"");
+        strcat(buf, node->as.call.fn_name);
+        strcat(buf, "\"");
+    } else if (node->type == NODE_FN_DEF) {
+        strcat(buf, "\"");
+        strcat(buf, node->as.fn_def.name);
+        strcat(buf, "\",");
+        serialize_node(node->as.fn_def.body, buf);
+    }
+    strcat(buf, "]");
+}
+
+static Value builtin_serialize_ast(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_AST_NODE) return val_string("None");
+    char *buf = malloc(10 * 1024 * 1024); // 10MB buf
+    buf[0] = 0;
+    serialize_node(args[0].as.ast_node, buf);
+    Value res = val_string(buf);
+    free(buf);
+    return res;
+}
+
+static Value builtin_hash_sha256(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_STRING) return val_string("");
+    
+    SHA256_CTX ctx;
+    uint8_t hash[32];
+    sha256_init(&ctx);
+    sha256_update(&ctx, (const uint8_t*)args[0].as.string_val, strlen(args[0].as.string_val));
+    sha256_final(&ctx, hash);
+    
+    char hex[65];
+    for (int i = 0; i < 32; i++) {
+        sprintf(hex + (i * 2), "%02x", hash[i]);
+    }
+    hex[64] = 0;
+    
+    return val_string(hex);
+}
+
+
+bool capture_mode = false;
+static Value builtin_set_capture_mode(Value *args, int argc, int line) {
+    if (argc == 1 && args[0].type == VAL_BOOL) {
+        capture_mode = args[0].as.bool_val;
+    }
+    return val_unit();
+}
+
+char captured_output[65536] = {0};
+
+static Value builtin_capture_println(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1) return val_unit();
+    char buf[256] = {0};
+    if (args[0].type == VAL_STRING) {
+        strncat(captured_output, args[0].as.string_val, sizeof(captured_output) - strlen(captured_output) - 1);
+    } else {
+        Value s = builtin_to_string(args, argc, line);
+        if (s.type == VAL_STRING) {
+            strncat(captured_output, s.as.string_val, sizeof(captured_output) - strlen(captured_output) - 1);
+        }
+    }
+    strncat(captured_output, "\n", sizeof(captured_output) - strlen(captured_output) - 1);
+    return val_unit();
+}
+
+static Value builtin_get_captured(Value *args, int argc, int line) {
+    (void)args; (void)argc; (void)line;
+    return val_string(captured_output);
+}
+
+static Value builtin_clear_captured(Value *args, int argc, int line) {
+    (void)args; (void)argc; (void)line;
+    captured_output[0] = '\0';
+    return val_unit();
+}
+
 /* ============================================================
  * Interpreter
  * ============================================================ */
@@ -566,8 +710,16 @@ void interp_register_builtins(Interp *interp) {
     env_define(interp->globals, "file_write", val_builtin(builtin_file_write),false);
     env_define(interp->globals, "joey_run_native", val_builtin(builtin_joey_run_native), false);
     env_define(interp->globals, "exec",       val_builtin(builtin_exec),      false);
+    
+    env_define(interp->globals, "parse_native", val_builtin(builtin_parse_native), false);
+    env_define(interp->globals, "eval_native", val_builtin(builtin_eval_native), false);
+    env_define(interp->globals, "serialize_ast", val_builtin(builtin_serialize_ast), false);
 
-
+    env_define(interp->globals, "hash_sha256",val_builtin(builtin_hash_sha256),false);
+    env_define(interp->globals, "capture_println",val_builtin(builtin_capture_println),false);
+    env_define(interp->globals, "get_captured",val_builtin(builtin_get_captured),false);
+        env_define(interp->globals, "set_capture_mode",val_builtin(builtin_set_capture_mode),false);
+    env_define(interp->globals, "clear_captured",val_builtin(builtin_clear_captured),false);
 }
 
 void interp_init(Interp *interp) {

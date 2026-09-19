@@ -25,13 +25,19 @@ To bootstrap Quokka from scratch:
 2. Run `quokka bootstrap`. This tells the current Quokka interpreter to read its own source files, parse them, and generate the final `quokka_interpreter.qk` unified file.
 
 ## 5. Self-Hosting Verifiability
+
 Quokka provides verifiable self-hosting via deterministic reproducibility testing.
 Command: `quokka check-self`
-**The Lifecycle:**
-1. The C host executes Stage-1 (`quokka_interpreter.qk`).
-2. Stage-1 is instructed to lex, parse, and evaluate *itself* (reading its own source files).
-3. Stage-1 generates an output artifact (Stage-2).
-4. Stage-2 must bit-for-bit match Stage-1, guaranteeing that the language semantics correctly comprehend and compile themselves without mutating or relying on undocumented C behaviors.
+
+**The Protocol:**
+1. **Stage 0 (C bootstrap)** compiles and runs **Stage 1** (`quokka_interpreter.qka`, written in Quokka).
+2. Stage 1, now running, is used to compile/interpret ITSELF (**Stage 2**) — i.e. Stage 1 reads its own source and produces an AST, then interprets a fixed test program.
+3. Stage 2's serialized AST and the test program's printed output are hashed using SHA-256.
+4. This repeats: Stage 2 interprets the same interpreter source again to produce **Stage 3**, and its AST/output are hashed.
+5. If Stage 2's hashes and Stage 3's hashes are identical, the interpreter is confirmed to produce byte-identical results when run on itself repeatedly — that's what "self-hosting is verified" actually means.
+
+This is a genuine multi-generation bootstrap where each stage's INPUT is the ACTUAL OUTPUT/AST of the previous stage interpreting the source.
+
 5. All conformance tests are executed against Stage-2.
 
 ## CLI Usage

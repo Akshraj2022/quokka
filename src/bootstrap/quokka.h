@@ -305,6 +305,7 @@ typedef enum {
     VAL_BUILTIN,
     VAL_UNIT,
     VAL_LIST,
+    VAL_AST_NODE,
 } ValueType;
 
 /* Built-in function pointer type */
@@ -336,6 +337,7 @@ struct Value {
         QkFunction  fn;
         BuiltinFn   builtin;
         QkList     *list;
+        Node       *ast_node;
     } as;
 };
 
