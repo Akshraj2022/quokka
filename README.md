@@ -80,7 +80,7 @@ match result {
     Err(e) => println("Training failed: " ++ e)
 }
 ```
-*Note: Joey writes the configuration to a secure `.json` IPC manifest and spawns the Python backend, ensuring Quokka remains pure and memory-safe.*
+*Note: Joey writes the configuration to a secure `.json` IPC manifest and spawns the Python backend, ensuring Quokka remains pure and memory-safe. Joey's CUDA-accelerated training path is Windows/Linux only — CUDA is not available on macOS hardware.*
 
 ## 🛠️ Building from Source
 
