@@ -4,7 +4,7 @@ Joey is an optional ML extension for Quokka, designed to integrate seamlessly wi
 
 ## Architecture
 
-1. **Quokka Standard Library API**: The `joey.qk` module provides a builder API (`joey.pipeline()`) that safely constructs an ML job configuration.
+1. **Quokka Standard Library API**: The `joey.qka` module provides a builder API (`joey.pipeline()`) that safely constructs an ML job configuration.
 2. **JSON IPC Protocol**: The configuration is serialized into JSON and written to a temporary job file (e.g., `.joey_job.json`).
 3. **Structured Process Execution**: Quokka spawns the Python backend (`joey_backend.py`) as an external process, passing the JSON file as a structured argument rather than relying on unsafe shell string concatenation.
 4. **Offline Resilience**: Quokka operates independently. If Python or the Joey backend dependencies are not installed, Joey calls gracefully fail with a structured `Err`, while the rest of Quokka remains unaffected.
@@ -61,7 +61,7 @@ pip install torch transformers unsloth peft datasets
 
 ## Security Limitations
 - **No String Concatenation**: Command line arguments are strictly passed to the process spawner as arrays (e.g., `["python", "joey_backend.py", job_file]`).
-- **Validated Inputs**: `joey.qk` must strictly validate that inputs correspond to expected types (e.g., integers for epochs, numerical ranges for learning rates) before JSON serialization.
+- **Validated Inputs**: `joey.qka` must strictly validate that inputs correspond to expected types (e.g., integers for epochs, numerical ranges for learning rates) before JSON serialization.
 - **Isolated Execution**: The python script runs as a child process. It cannot mutate Quokka's memory or runtime environment directly.
 
 ## Error Conversion
