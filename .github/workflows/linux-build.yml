@@ -1,0 +1,52 @@
+name: Linux Build and Self-Host Verification
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-linux-x64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile C bootstrap (Stage 0)
+        run: |
+          mkdir -p build
+          gcc -std=c11 src/bootstrap/*.c src/joey/joey_native.c -o build/qk_bootstrap -lm
+
+      - name: Verify Stage 0 binary architecture
+        run: file build/qk_bootstrap | grep -q "x86-64" || (echo "Build is not x86-64" && exit 1)
+
+      - name: Run Stage 0 to bootstrap Stage 1
+        run: ./build/qk_bootstrap src/quokka_interpreter.qka bootstrap
+
+      - name: Run quokka check-self
+        run: ./build/qk_bootstrap src/quokka_interpreter.qka check-self
+
+      - name: Run test suite
+        run: |
+          if [ -d tests/conformance ]; then
+            for f in tests/conformance/*.qka; do
+              ./build/qk_bootstrap src/quokka_interpreter.qka run "$f" || exit 1
+            done
+          fi
+
+      - name: Package as tarball
+        if: success()
+        run: |
+          mkdir -p dist/quokka-linux-x64
+          cp build/qk_bootstrap dist/quokka-linux-x64/quokka
+          cp -r src dist/quokka-linux-x64/
+          cp LICENSE README.md dist/quokka-linux-x64/
+          tar -czf quokka-linux-x64.tar.gz -C dist quokka-linux-x64
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quokka-linux-x64
+          path: quokka-linux-x64.tar.gz
+
