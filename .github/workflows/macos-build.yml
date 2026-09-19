@@ -47,3 +47,43 @@ jobs:
         with:
           name: quokka-macos-arm64
           path: quokka-macos-arm64.tar.gz
+
+  build-macos-x64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile C bootstrap (Stage 0)
+        run: |
+          mkdir -p build
+          clang -std=c11 -arch x86_64 src/bootstrap/*.c src/joey/joey_native.c -o build/qk_bootstrap
+
+      - name: Verify Stage 0 binary architecture
+        run: file build/qk_bootstrap | grep -q "x86_64" || (echo "Build is not x86_64" && exit 1)
+
+      - name: Run Stage 0 to bootstrap Stage 1
+        run: ./build/qk_bootstrap src/quokka_interpreter.qka bootstrap
+
+      - name: Run quokka check-self
+        run: ./build/qk_bootstrap src/quokka_interpreter.qka check-self
+
+      - name: Run test suite
+        run: |
+          for f in tests/conformance/*.qka; do
+            ./build/qk_bootstrap src/quokka_interpreter.qka run "$f" || exit 1
+          done
+
+      - name: Package as tarball
+        if: success()
+        run: |
+          mkdir -p dist/quokka-macos-x64
+          cp build/qk_bootstrap dist/quokka-macos-x64/quokka
+          cp -r src dist/quokka-macos-x64/
+          cp LICENSE README.md dist/quokka-macos-x64/
+          tar -czf quokka-macos-x64.tar.gz -C dist quokka-macos-x64
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: quokka-macos-x64
+          path: quokka-macos-x64.tar.gz
