@@ -500,10 +500,10 @@ static Value builtin_exec(Value *args, int argc, int line) {
     }
     
     // Redirect stdout to a temp file
-    strcat(cmd, " > .qk_exec_out 2> .qk_exec_err");
+    strcat(cmd, " > .qka_exec_out 2> .qka_exec_err");
     int status = system(cmd);
     
-    FILE *f = fopen(".qk_exec_out", "rb");
+    FILE *f = fopen(".qka_exec_out", "rb");
     char *out_str = NULL;
     if (f) {
         fseek(f, 0, SEEK_END);

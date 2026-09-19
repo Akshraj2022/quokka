@@ -3,7 +3,7 @@
  *
  * Usage:
  *   quokka                   — start REPL
- *   quokka <file.qk>         — run a .qk file
+ *   quokka <file.qka>        — run a .qka file
  *============================================================*/
 
 #include "quokka.h"

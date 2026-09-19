@@ -1,5 +1,5 @@
 /*============================================================
- * Quokka Lexer — tokenizes .qk source into a stream of tokens
+ * Quokka Lexer - tokenizes .qka source into a stream of tokens
  *============================================================*/
 
 #include "quokka.h"
