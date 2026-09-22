@@ -12,12 +12,20 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux-x64
+            ext: .deb
+            file: quokka-linux-x64.deb
           - os: macos-latest
             target: macos-arm64
+            ext: .tar.gz
+            file: quokka-macos-arm64.tar.gz
           - os: macos-13
             target: macos-x64
+            ext: .tar.gz
+            file: quokka-macos-x64.tar.gz
           - os: windows-latest
             target: windows-x64
+            ext: .zip
+            file: quokka-windows-x64.zip
 
     runs-on: ${{ matrix.os }}
     
@@ -39,7 +47,7 @@ jobs:
           mkdir -p package/usr/local/bin
           cp build/quokka package/usr/local/bin/
           mkdir -p package/DEBIAN
-          echo "Package: quokka\nVersion: 0.3.0\nSection: base\nPriority: optional\nArchitecture: amd64\nMaintainer: Quokka\nDescription: Quokka Interpreter" > package/DEBIAN/control
+          echo -e "Package: quokka\nVersion: 0.3.0\nSection: base\nPriority: optional\nArchitecture: amd64\nMaintainer: Quokka\nDescription: Quokka Interpreter" > package/DEBIAN/control
           dpkg-deb --build package quokka-linux-x64.deb
 
       - name: Build MacOS
@@ -52,10 +60,6 @@ jobs:
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            quokka-windows-x64.zip
-            quokka-linux-x64.deb
-            quokka-macos-arm64.tar.gz
-            quokka-macos-x64.tar.gz
+          files: ${{ matrix.file }}
           body_path: CHANGELOG.md
           token: ${{ secrets.GITHUB_TOKEN }}
