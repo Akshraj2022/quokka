@@ -5,26 +5,25 @@ on:
     tags:
       - 'v*.*.*'
 
+permissions:
+  contents: write
+
 jobs:
-  build-and-release:
+  build:
     strategy:
       matrix:
         include:
           - os: ubuntu-latest
             target: linux-x64
-            ext: .deb
             file: quokka-linux-x64.deb
           - os: macos-latest
             target: macos-arm64
-            ext: .tar.gz
             file: quokka-macos-arm64.tar.gz
           - os: macos-13
             target: macos-x64
-            ext: .tar.gz
             file: quokka-macos-x64.tar.gz
           - os: windows-latest
             target: windows-x64
-            ext: .zip
             file: quokka-windows-x64.zip
 
     runs-on: ${{ matrix.os }}
@@ -37,7 +36,7 @@ jobs:
         run: |
           mkdir build
           gcc -std=c11 -Wall -Wextra -Wno-unused-parameter -o build/quokka.exe src/bootstrap/main.c src/bootstrap/lexer.c src/bootstrap/parser.c src/bootstrap/interpreter.c src/bootstrap/sha256.c src/joey/joey_native.c src/joey/joey_watch.c -lws2_32
-          Compress-Archive -Path build/quokka.exe -DestinationPath quokka-windows-x64.zip
+          Compress-Archive -Path build/quokka.exe -DestinationPath ${{ matrix.file }}
 
       - name: Build Linux
         if: matrix.os == 'ubuntu-latest'
@@ -47,19 +46,43 @@ jobs:
           mkdir -p package/usr/local/bin
           cp build/quokka package/usr/local/bin/
           mkdir -p package/DEBIAN
-          echo -e "Package: quokka\nVersion: 0.3.0\nSection: base\nPriority: optional\nArchitecture: amd64\nMaintainer: Quokka\nDescription: Quokka Interpreter" > package/DEBIAN/control
-          dpkg-deb --build package quokka-linux-x64.deb
+          echo "Package: quokka" > package/DEBIAN/control
+          echo "Version: 0.3.0" >> package/DEBIAN/control
+          echo "Section: base" >> package/DEBIAN/control
+          echo "Priority: optional" >> package/DEBIAN/control
+          echo "Architecture: amd64" >> package/DEBIAN/control
+          echo "Maintainer: Quokka" >> package/DEBIAN/control
+          echo "Description: Quokka Interpreter" >> package/DEBIAN/control
+          dpkg-deb --build package ${{ matrix.file }}
 
       - name: Build MacOS
         if: startsWith(matrix.os, 'macos')
         run: |
           mkdir build
           gcc -std=c11 src/bootstrap/*.c src/joey/joey_native.c src/joey/joey_watch.c -o build/quokka -lm
-          tar -czf quokka-${{ matrix.target }}.tar.gz -C build quokka
+          tar -czf ${{ matrix.file }} -C build quokka
 
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.file }}
+          path: ${{ matrix.file }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+          
       - name: Release
         uses: softprops/action-gh-release@v1
         with:
-          files: ${{ matrix.file }}
+          files: artifacts/*
           body_path: CHANGELOG.md
           token: ${{ secrets.GITHUB_TOKEN }}
