@@ -97,7 +97,7 @@ static int run(const char *source) {
  * ============================================================ */
 
 static void repl(void) {
-    printf("Quokka v0.0  —  \"If you can read it, you can know what it does.\"\n");
+    printf("Quokka v0.3.0  —  \"If you can read it, you can know what it does.\"\n");
     printf("Type expressions or statements. Ctrl+C to exit.\n\n");
 
     /* We keep one persistent interpreter across REPL lines
@@ -142,6 +142,11 @@ static void repl(void) {
  * ============================================================ */
 
 int main(int argc, char *argv[]) {
+
+    if (argc >= 2 && (strcmp(argv[1], "watch") == 0 || (argc >= 3 && strcmp(argv[1], "joey") == 0 && strcmp(argv[2], "status") == 0))) {
+        extern int joey_watch_main(void);
+        return joey_watch_main();
+    }
     if (argc == 1) {
         repl();
         return 0;

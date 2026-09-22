@@ -5,7 +5,7 @@
 
   <p><a href="https://quokka.space">?? Visit quokka.space</a></p>
 
-  [![Version](https://img.shields.io/badge/version-v0.2.0-blue.svg)](https://quokka.space)
+  [![Version](https://img.shields.io/badge/version-v0.3.0-blue.svg)](https://quokka.space)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://quokka.space)
 </div>

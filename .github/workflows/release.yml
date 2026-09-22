@@ -1,0 +1,61 @@
+﻿name: Release v0.3.0
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-release:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+          - os: macos-latest
+            target: macos-arm64
+          - os: macos-13
+            target: macos-x64
+          - os: windows-latest
+            target: windows-x64
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Windows
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir build
+          gcc -std=c11 -Wall -Wextra -Wno-unused-parameter -o build/quokka.exe src/bootstrap/main.c src/bootstrap/lexer.c src/bootstrap/parser.c src/bootstrap/interpreter.c src/bootstrap/sha256.c src/joey/joey_native.c src/joey/joey_watch.c -lws2_32
+          Compress-Archive -Path build/quokka.exe -DestinationPath quokka-windows-x64.zip
+
+      - name: Build Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          mkdir build
+          gcc -std=c11 src/bootstrap/*.c src/joey/joey_native.c src/joey/joey_watch.c -o build/quokka -lm
+          mkdir -p package/usr/local/bin
+          cp build/quokka package/usr/local/bin/
+          mkdir -p package/DEBIAN
+          echo "Package: quokka\nVersion: 0.3.0\nSection: base\nPriority: optional\nArchitecture: amd64\nMaintainer: Quokka\nDescription: Quokka Interpreter" > package/DEBIAN/control
+          dpkg-deb --build package quokka-linux-x64.deb
+
+      - name: Build MacOS
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          mkdir build
+          gcc -std=c11 src/bootstrap/*.c src/joey/joey_native.c src/joey/joey_watch.c -o build/quokka -lm
+          tar -czf quokka-${{ matrix.target }}.tar.gz -C build quokka
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            quokka-windows-x64.zip
+            quokka-linux-x64.deb
+            quokka-macos-arm64.tar.gz
+            quokka-macos-x64.tar.gz
+          body_path: CHANGELOG.md
+          token: ${{ secrets.GITHUB_TOKEN }}

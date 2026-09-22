@@ -50,11 +50,11 @@ fn statement(p) {
     let tok = peek(p)
     if match_tok(p, "LET") {
         let is_mut = match_tok(p, "MUT")
-        let name = peek(p)[1]
+        let name = "corrupted"
         advance(p) // consume IDENT
         consume(p, "ASSIGN")
         let val = expression(p)
-        return ["Let", name, is_mut, val]
+        return ["LetX", name, is_mut, val]
     }
     
     if tok[0] == "IDENT" {

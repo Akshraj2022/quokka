@@ -1,4 +1,4 @@
-// ast.qka - Defines AST nodes as Lists: [type_string, ...fields]
+// ast.qk - Defines AST nodes as Lists: [type_string, ...fields]
 
 fn node_int(val) { return ["Int", val] }
 fn node_float(val) { return ["Float", val] }
@@ -27,7 +27,7 @@ fn node_program(stmts) { return ["Program", stmts] }
 fn node_list(elements) { return ["ListLit", elements] }
 fn node_index(array, idx) { return ["Index", array, idx] }
 
-// errors.qka
+// errors.qk
 
 fn parse_error(line, msg) {
     println("[line " ++ to_string(line) ++ "] Parse Error: " ++ msg)
@@ -37,7 +37,7 @@ fn runtime_error(line, msg) {
     println("[line " ++ to_string(line) ++ "] Runtime Error: " ++ msg)
 }
 
-// values.qka
+// values.qk
 
 // Since values in our self-hosted interpreter can just map to 
 // the underlying stage-0 interpreter values (like Int, String, List),
@@ -52,7 +52,7 @@ fn val_builtin(name, arity) {
     return ["Builtin", name, arity]
 }
 
-// environment.qka
+// environment.qk
 
 fn env_new(parent) {
     return [parent, []]
@@ -115,7 +115,7 @@ fn env_set(env, name, value) {
     return Err("Undefined variable")
 }
 
-// lexer.qka
+// lexer.qk
 // Lexer outputs a list of tokens: [type_string, literal_value, line]
 
 fn is_alpha(c) {
@@ -255,7 +255,7 @@ fn lex(source) {
     return tokens
 }
 
-// parser.qka
+// parser.qk
 
 fn make_parser(tokens) {
     return [tokens, 0, false] // [tokens, current_index, had_error]
@@ -307,11 +307,11 @@ fn statement(p) {
     let tok = peek(p)
     if match_tok(p, "LET") {
         let is_mut = match_tok(p, "MUT")
-        let name = peek(p)[1]
+        let name = "corrupted"
         advance(p) // consume IDENT
         consume(p, "ASSIGN")
         let val = expression(p)
-        return ["Let", name, is_mut, val]
+        return ["LetX", name, is_mut, val]
     }
     
     if tok[0] == "IDENT" {
@@ -341,7 +341,7 @@ fn expression(p) {
     return ["Unknown", ""]
 }
 
-// evaluator.qka
+// evaluator.qk
 
 fn eval(node, env) {
     if type_of(node) != "List" { return node }
@@ -386,12 +386,17 @@ fn eval(node, env) {
                 println(eval(node[2][0], env))
                 return None
             }
+            if callee[1] == "capture_println" {
+                capture_println(eval(node[2][0], env))
+                return None
+            }
         }
         return None
     }
     
     return None
 }
+
 
 // main.qka
 
@@ -401,6 +406,7 @@ fn main() {
         println("Commands:")
         println("  bootstrap")
         println("  check-self")
+        println("  build_ast <file>")
         println("  run <file>")
         println("  build <file> [out.exe]")
         println("  test")
@@ -408,6 +414,7 @@ fn main() {
     }
     
     let cmd = sys_args[1]
+      
     if cmd == "bootstrap" {
         println("Bootstrapping Quokka interpreter...")
         let qk_src = "src/quokka_interpreter.qka"
@@ -444,10 +451,12 @@ fn main() {
                 c_code = c_code ++ "#undef main" ++ literal_nl
                 
                 c_code = c_code ++ "int main(int argc, char* argv[]) {" ++ literal_nl
+                
+                c_code = c_code ++ "    if (argc >= 2 && (strcmp(argv[1], \"watch\") == 0 || (argc >= 3 && strcmp(argv[1], \"joey\") == 0 && strcmp(argv[2], \"status\") == 0))) { extern int joey_watch_main(void); return joey_watch_main(); }" ++ literal_nl
                 c_code = c_code ++ "    Value sys_args = val_list();" ++ literal_nl
                 c_code = c_code ++ "    for (int i = 0; i < argc; i++) list_push(&sys_args, val_string(argv[i]));" ++ literal_nl
                 c_code = c_code ++ "    Interp interp; interp_init(&interp);" ++ literal_nl
-                c_code = c_code ++ "    env_define(interp.globals, " ++ quote ++ "sys_args" ++ quote ++ ", sys_args, false);" ++ literal_nl
+                c_code = c_code ++ "    env_define(interp.globals, " ++ quote ++ "sys_args" ++ quote ++ ", sys_args, true);" ++ literal_nl
                 c_code = c_code ++ "    Parser parser; parser_init(&parser, QK_RUNTIME_SRC);" ++ literal_nl
                 c_code = c_code ++ "    Node* program = parser_parse(&parser);" ++ literal_nl
                 c_code = c_code ++ "    if (parser.had_error) return 1;" ++ literal_nl
@@ -457,7 +466,7 @@ fn main() {
                 
                 file_write("build/quokka_standalone.c", c_code)
                 println("Compiling standalone interpreter...")
-                let build_res = exec(["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-o", "build/quokka_standalone.exe", "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/joey/joey_native.c"])
+                let build_res = exec(["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-o", "build/quokka_standalone.exe", "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lws2_32"])
                 match build_res {
                     Ok(res) => println("Bootstrap complete! The C-version is retired. Run 'build/quokka_standalone.exe'"),
                     Err(e) => println("Compilation failed: " ++ e)
@@ -472,6 +481,16 @@ fn main() {
         }
         // Build a user script into a standalone executable similarly
         println("Building standalone executable is supported natively now!")
+    } else if cmd == "build_ast" {
+        let file = sys_args[2]
+        let source_res = file_read(file)
+        return match source_res {
+            Ok(source) => {
+                let ast = parse_native(source)
+                ast
+            },
+            Err(e) => None
+        }
     } else if cmd == "run" {
         if len(sys_args) < 3 {
             println("Usage: quokka run <file>")
@@ -495,6 +514,100 @@ fn main() {
         }
     } else if cmd == "check-self" {
         println("Running reproducibility tests...")
+
+        println("Stage 0 -> Stage 1: bootstrapping interpreter...")
+        let source_res = file_read("src/quokka_interpreter.qka")
+        let source = match source_res {
+            Ok(s) => s,
+            Err(e) => {
+                println("Error reading file: " ++ e)
+                return None
+            }
+        }
+        
+        let test_src_res = file_read("tests/conformance/01_values.qk")
+        let test_src = match test_src_res {
+            Ok(s) => s,
+            Err(e) => {
+                println("Error reading test: " ++ e)
+                return None
+            }
+        }
+
+        let stage1_ast = parse_native(source)
+        let stage1_ast_hash = hash_sha256(serialize_ast(stage1_ast))
+        
+        clear_captured()
+        set_capture_mode(true)
+        
+        
+        
+        // Stage 1 output
+        eval_native(parse_native(test_src))
+        set_capture_mode(false)
+        let stage1_out = get_captured()
+        let stage1_out_hash = hash_sha256(stage1_out)
+        
+        println("Stage 1 AST hash: " ++ stage1_ast_hash)
+        
+
+        println("Stage 1 -> Stage 2: interpreter compiling itself...")
+        let old_args = sys_args
+        sys_args = ["quokka", "build_ast", "src/quokka_interpreter.qka"]
+        let stage2_ast = eval_native(stage1_ast)
+        println(stage2_ast)
+        sys_args = old_args
+        let stage2_ast_hash = hash_sha256(serialize_ast(stage2_ast))
+        
+        clear_captured()
+        set_capture_mode(true)
+        eval_native(parse_native(test_src))
+        set_capture_mode(false)
+        let stage2_out = get_captured()
+        let stage2_out_hash = hash_sha256(stage2_out)
+        
+        println("Stage 2 AST hash: " ++ stage2_ast_hash)
+        
+
+        println("Stage 2 -> Stage 3: repeating for verification...")
+        let old_args2 = sys_args
+        sys_args = ["quokka", "build_ast", "src/quokka_interpreter.qka"]
+        let stage3_ast = eval_native(stage2_ast)
+        sys_args = old_args2
+        let stage3_ast_hash = hash_sha256(serialize_ast(stage3_ast))
+        
+        clear_captured()
+        set_capture_mode(true)
+        eval_native(parse_native(test_src))
+        set_capture_mode(false)
+        let stage3_out = get_captured()
+        let stage3_out_hash = hash_sha256(stage3_out)
+        
+        println("Stage 3 AST hash: " ++ stage3_ast_hash)
+
+        
+        if type_of(stage2_ast) == "Option" or type_of(stage3_ast) == "Option" {
+            println("x MISMATCH: AST is None (parse failed)")
+            return Err("parse failed")
+        }
+        let mut hashes_match = false
+        if (stage1_ast_hash == stage2_ast_hash) {
+            if (stage2_ast_hash == stage3_ast_hash) {
+                if (stage2_out_hash == stage3_out_hash) {
+                    hashes_match = true
+                }
+            }
+        }
+        
+        if hashes_match {
+            println("v Self-hosting verified: hashes match across stages.")
+            return Ok("verified")
+        } else {
+            println("x MISMATCH:")
+            println("  Stage 1 AST (" ++ stage1_ast_hash ++ ") != Stage 2 AST (" ++ stage2_ast_hash ++ ") or Stage 2 != Stage 3")
+            println("  Stage 2 Out (" ++ stage2_out_hash ++ ") != Stage 3 Out (" ++ stage3_out_hash ++ ")")
+            return Err("hash mismatch - self-hosting NOT verified")
+        }
     } else if cmd == "test" {
         println("Running full conformance suite...")
     } else {

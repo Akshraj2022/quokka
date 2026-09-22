@@ -43,6 +43,10 @@ fn eval(node, env) {
                 println(eval(node[2][0], env))
                 return None
             }
+            if callee[1] == "capture_println" {
+                capture_println(eval(node[2][0], env))
+                return None
+            }
         }
         return None
     }
