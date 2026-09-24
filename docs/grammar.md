@@ -48,6 +48,7 @@ primary        ::= NUMBER | STRING | "true" | "false"
                  | IDENTIFIER | "None" | "Some" "(" expression ")"
                  | "Ok" "(" expression ")" | "Err" "(" expression ")"
                  | "(" expression ")"
+                 | "return" expression?
                  | "match" expression "{" match_arm* "}"
                  | "if" expression block ( "else" block )?
 
