@@ -97,7 +97,7 @@ static int run(const char *source) {
  * ============================================================ */
 
 static void repl(void) {
-    printf("Quokka v0.3.0  —  \"If you can read it, you can know what it does.\"\n");
+    printf("Quokka v0.4.0  —  \"If you can read it, you can know what it does.\"\n");
     printf("Type expressions or statements. Ctrl+C to exit.\n\n");
 
     /* We keep one persistent interpreter across REPL lines

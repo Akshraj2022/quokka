@@ -173,6 +173,16 @@ static Node *parse_primary(Parser *p) {
         n->as.err_val.value = v;
         return n;
     }
+    if (match(p, TOK_RETURN)) {
+        int line = p->previous.line;
+        Node *expr = NULL;
+        if (!check(p, TOK_RBRACE) && !check(p, TOK_EOF) && !check(p, TOK_COMMA)) {
+            expr = expression(p);
+        }
+        Node *n = node_new(NODE_RETURN, line);
+        n->as.ret.value = expr;
+        return n;
+    }
     if (match(p, TOK_IDENT)) {
         int line = p->previous.line;
         char *name = qk_strndup(p->previous.start, p->previous.length);
@@ -571,17 +581,6 @@ static Node *statement(Parser *p) {
         n->as.for_loop.var_name = var_name;
         n->as.for_loop.iter = iter;
         n->as.for_loop.body = body;
-        return n;
-    }
-    if (match(p, TOK_RETURN)) {
-        int line = p->previous.line;
-        Node *val = NULL;
-        // Check if there is an expression following
-        if (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
-            val = expression(p);
-        }
-        Node *n = node_new(NODE_RETURN, line);
-        n->as.ret.value = val;
         return n;
     }
     if (match(p, TOK_BREAK)) {
