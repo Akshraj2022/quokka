@@ -532,6 +532,7 @@ fn parse_primary(p) {
         if match_tok(p, "ARROW") { consume(p, "IDENT") }
         return ["Fn", "", params, parse_block(p)]
     }
+    if check(p, "LBRACE") { return parse_block(p) }
     advance(p)
     return ["Unknown"]
 }
@@ -854,15 +855,22 @@ fn main() {
                 
                 let mut i = 0
                 let srclen = len(source)
+                let mut cr = ""
+                let mut lf = literal_nl
+                if len(nl_str) == 2 {
+                    cr = substring(nl_str, 0, 1)
+                    lf = substring(nl_str, 1, 2)
+                }
                 while i < srclen {
                     let c = substring(source, i, i+1)
-                    if c == literal_nl { c_code = c_code ++ slash_n }
+                    if c == lf { c_code = c_code ++ slash_n }
+                    else if c == cr { }
                     else if c == quote { c_code = c_code ++ slash_quote }
                     else if c == backslash { c_code = c_code ++ slash_slash }
                     else { c_code = c_code ++ c }
                     i = i + 1
                 }
-                c_code = c_code ++ quote ++ ";" ++ literal_nl ++ literal_nl
+                c_code = c_code ++ quote ++ ";" ++ lf ++ lf
                 
                 c_code = c_code ++ "#define main quokka_main" ++ literal_nl
                 c_code = c_code ++ "#include " ++ quote ++ "../src/bootstrap/main.c" ++ quote ++ literal_nl
@@ -870,7 +878,7 @@ fn main() {
                 
                 c_code = c_code ++ "int main(int argc, char* argv[]) {" ++ literal_nl
                 
-                c_code = c_code ++ "    if (argc >= 2 && (strcmp(argv[1], \"watch\") == 0 || (argc >= 3 && strcmp(argv[1], \"joey\") == 0 && strcmp(argv[2], \"status\") == 0))) { extern int joey_watch_main(void); return joey_watch_main(); }" ++ literal_nl
+                c_code = c_code ++ "    if (argc >= 2 && (strcmp(argv[1], " ++ quote ++ "watch" ++ quote ++ ") == 0 || (argc >= 3 && strcmp(argv[1], " ++ quote ++ "joey" ++ quote ++ ") == 0 && strcmp(argv[2], " ++ quote ++ "status" ++ quote ++ ") == 0))) { extern int joey_watch_main(void); return joey_watch_main(); }" ++ literal_nl
                 c_code = c_code ++ "    Value sys_args = val_list();" ++ literal_nl
                 c_code = c_code ++ "    for (int i = 0; i < argc; i++) list_push(&sys_args, val_string(argv[i]));" ++ literal_nl
                 c_code = c_code ++ "    Interp interp; interp_init(&interp);" ++ literal_nl
@@ -878,16 +886,52 @@ fn main() {
                 c_code = c_code ++ "    Parser parser; parser_init(&parser, QK_RUNTIME_SRC);" ++ literal_nl
                 c_code = c_code ++ "    Node* program = parser_parse(&parser);" ++ literal_nl
                 c_code = c_code ++ "    if (parser.had_error) return 1;" ++ literal_nl
-                c_code = c_code ++ "    interp_exec(&interp, program);" ++ literal_nl
-                c_code = c_code ++ "    return interp.had_error ? 1 : 0;" ++ literal_nl
+                c_code = c_code ++ "    Value eval_result = interp_exec(&interp, program);" ++ literal_nl
+                c_code = c_code ++ "    return (interp.had_error || eval_result.type == VAL_ERR) ? 1 : 0;" ++ literal_nl
                 c_code = c_code ++ "}" ++ literal_nl
                 
                 file_write("build/quokka_standalone.c", c_code)
                 println("Compiling standalone interpreter...")
-                let build_res = exec(["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-o", "build/quokka_standalone.exe", "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lws2_32"])
+                
+                let os = os_name()
+                let mut exe_suffix = ""
+                if os == "windows" { exe_suffix = ".exe" }
+                
+                let mut gcc_args = ["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-D_DEFAULT_SOURCE", "-o", "build/quokka_standalone" ++ exe_suffix, "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lm"]
+                
+                if os == "windows" {
+                    push(gcc_args, "-lws2_32")
+                }
+                
+                let build_res = exec(gcc_args)
                 match build_res {
-                    Ok(res) => println("Bootstrap complete! The C-version is retired. Run 'build/quokka_standalone.exe'"),
-                    Err(e) => println("Compilation failed: " ++ e)
+                    Ok(res) => {
+                        let status = res[0][1]
+                        if status == 0 {
+                            let test_res = exec(["build/quokka_standalone" ++ exe_suffix, "src/quokka_interpreter.qka", "run", "examples/hello.qk"])
+                            match test_res {
+                                Ok(tres) => {
+                                    if tres[0][1] == 0 {
+                                        println("Bootstrap complete! The C-version is retired. Run 'build/quokka_standalone" ++ exe_suffix ++ "'")
+                                    } else {
+                                        println("Bootstrap binary failed hello.qk test with exit code " ++ to_string(tres[0][1]))
+                                        let fail = 1 / 0
+                                    }
+                                },
+                                Err(e) => {
+                                    println("Failed to run hello.qk check: " ++ e)
+                                    let fail = 1 / 0
+                                }
+                            }
+                        } else {
+                            println("Compilation failed with status " ++ to_string(status) ++ ": " ++ res[1][1] ++ res[2][1])
+                            let fail = 1 / 0
+                        }
+                    },
+                    Err(e) => {
+                        println("Compilation execution failed: " ++ e)
+                        let fail = 1 / 0
+                    }
                 }
             },
             Err(e) => println("Error reading interpreter source: " ++ e)
@@ -904,19 +948,21 @@ fn main() {
         let source_res = file_read(file)
         return match source_res {
             Ok(source) => {
-                let ast = parse_native(source)
+                let tokens = lex(source)
+                let p = make_parser(tokens)
+                let ast = parse(p)
                 ast
             },
             Err(e) => None
         }
-    } else if cmd == "run" {
+        } else if cmd == "run" {
         if len(sys_args) < 3 {
             println("Usage: quokka run <file>")
             return None
         }
         let file = sys_args[2]
         let source_res = file_read(file)
-        match source_res {
+        return match source_res {
             Ok(source) => {
                 let tokens = lex(source)
                 let p = make_parser(tokens)
@@ -948,56 +994,74 @@ fn main() {
                 env_define(global_env, "get_captured", val_builtin("get_captured", 0), false)
                 env_define(global_env, "set_capture_mode", val_builtin("set_capture_mode", 1), false)
                 env_define(global_env, "clear_captured", val_builtin("clear_captured", 0), false)
-                eval(ast, global_env)
+                let mut inner_args = []
+                let mut i = 3
+                while i < len(sys_args) { push(inner_args, sys_args[i]) i = i + 1 }
+                let mut new_sys_args = ["quokka"]
+                i = 0
+                while i < len(inner_args) { push(new_sys_args, inner_args[i]) i = i + 1 }
+                env_define(global_env, "sys_args", new_sys_args, false)
+                let res = eval(ast, global_env)
+                if type_of(res) == "List" and len(res) > 0 and res[0] == "ReturnVal" { return res[1] }
+                return res
             },
-            Err(e) => println("Error reading file: " ++ e)
+            Err(e) => { println("Error reading file: " ++ e) return None }
         }
-    } else if cmd == "check-self" {
+        } else if cmd == "check-self" {
         println("Running reproducibility tests...")
 
-        println("Stage 0 -> Stage 1: bootstrapping interpreter...")
+        println("Stage 0: C parser parsing Quokka interpreter...")
         let source_res = file_read("src/quokka_interpreter.qka")
         let source = match source_res {
             Ok(s) => s,
-            Err(e) => {
-                println("Error reading file: " ++ e)
-                return None
-            }
+            Err(e) => { println("Error reading file: " ++ e) return None }
         }
         
         let test_src_res = file_read("tests/conformance/01_values.qk")
         let test_src = match test_src_res {
             Ok(s) => s,
-            Err(e) => {
-                println("Error reading test: " ++ e)
-                return None
-            }
+            Err(e) => { println("Error reading test: " ++ e) return None }
         }
 
-        let stage1_ast = parse_native(source)
-        let stage1_ast_hash = hash_sha256(serialize_ast(stage1_ast))
+        let stage0_ast = parse_native(source)
+        let stage0_ast_str = serialize_ast(stage0_ast)
+        file_write("ast_0.txt", stage0_ast_str)
+        let stage0_ast_hash = hash_sha256(stage0_ast_str)
+        println("Stage 0 AST hash: " ++ stage0_ast_hash)
         
         clear_captured()
         set_capture_mode(true)
+        eval_native(parse_native(test_src))
+        set_capture_mode(false)
+        let stage0_out = get_captured()
+        let stage0_out_hash = hash_sha256(stage0_out)
+
+        println("Stage 1: Quokka parser on C host...")
+        let old_args = sys_args
+        sys_args = ["quokka", "build_ast", "src/quokka_interpreter.qka"]
+        let stage1_ast = eval_native(stage0_ast)
+        sys_args = old_args
+        let stage1_ast_str = serialize_ast(stage1_ast)
+        file_write("ast_1.txt", stage1_ast_str)
+        let stage1_ast_hash = hash_sha256(stage1_ast_str)
+        println("Stage 1 AST hash: " ++ stage1_ast_hash)
         
-        
-        
-        // Stage 1 output
+        clear_captured()
+        set_capture_mode(true)
         eval_native(parse_native(test_src))
         set_capture_mode(false)
         let stage1_out = get_captured()
         let stage1_out_hash = hash_sha256(stage1_out)
         
-        println("Stage 1 AST hash: " ++ stage1_ast_hash)
-        
-
-        println("Stage 1 -> Stage 2: interpreter compiling itself...")
-        let old_args = sys_args
-        sys_args = ["quokka", "build_ast", "src/quokka_interpreter.qka"]
-        let stage2_ast = eval_native(stage1_ast)
-        println(stage2_ast)
-        sys_args = old_args
-        let stage2_ast_hash = hash_sha256(serialize_ast(stage2_ast))
+        println("Stage 2: Quokka parser on self-hosted interpreter...")
+        let old_args2 = sys_args
+        sys_args = ["quokka", "run", "src/quokka_interpreter.qka", "build_ast", "src/quokka_interpreter.qka"]
+        let stage2_ast = eval_native(stage0_ast)
+        sys_args = old_args2
+        let stage2_ast_str = serialize_ast(stage2_ast)
+        file_write("ast_2.txt", stage2_ast_str)
+        let stage2_ast_hash = hash_sha256(stage2_ast_str)
+        println("Stage 2 AST hash: " ++ stage2_ast_hash)
         
         clear_captured()
         set_capture_mode(true)
@@ -1005,36 +1069,18 @@ fn main() {
         set_capture_mode(false)
         let stage2_out = get_captured()
         let stage2_out_hash = hash_sha256(stage2_out)
-        
-        println("Stage 2 AST hash: " ++ stage2_ast_hash)
-        
 
-        println("Stage 2 -> Stage 3: repeating for verification...")
-        let old_args2 = sys_args
-        sys_args = ["quokka", "build_ast", "src/quokka_interpreter.qka"]
-        let stage3_ast = eval_native(stage2_ast)
-        sys_args = old_args2
-        let stage3_ast_hash = hash_sha256(serialize_ast(stage3_ast))
-        
-        clear_captured()
-        set_capture_mode(true)
-        eval_native(parse_native(test_src))
-        set_capture_mode(false)
-        let stage3_out = get_captured()
-        let stage3_out_hash = hash_sha256(stage3_out)
-        
-        println("Stage 3 AST hash: " ++ stage3_ast_hash)
-
-        
-        if type_of(stage2_ast) == "Option" or type_of(stage3_ast) == "Option" {
+        if type_of(stage1_ast) == "Option" or type_of(stage2_ast) == "Option" {
             println("x MISMATCH: AST is None (parse failed)")
             return Err("parse failed")
         }
         let mut hashes_match = false
-        if (stage1_ast_hash == stage2_ast_hash) {
-            if (stage2_ast_hash == stage3_ast_hash) {
-                if (stage2_out_hash == stage3_out_hash) {
-                    hashes_match = true
+        if (stage0_ast_hash == stage1_ast_hash) {
+            if (stage1_ast_hash == stage2_ast_hash) {
+                if (stage0_out_hash == stage1_out_hash) {
+                    if (stage1_out_hash == stage2_out_hash) {
+                        hashes_match = true
+                    }
                 }
             }
         }
@@ -1044,8 +1090,9 @@ fn main() {
             return Ok("verified")
         } else {
             println("x MISMATCH:")
-            println("  Stage 1 AST (" ++ stage1_ast_hash ++ ") != Stage 2 AST (" ++ stage2_ast_hash ++ ") or Stage 2 != Stage 3")
-            println("  Stage 2 Out (" ++ stage2_out_hash ++ ") != Stage 3 Out (" ++ stage3_out_hash ++ ")")
+            println("  Stage 0 AST (" ++ stage0_ast_hash ++ ")")
+            println("  Stage 1 AST (" ++ stage1_ast_hash ++ ")")
+            println("  Stage 2 AST (" ++ stage2_ast_hash ++ ")")
             return Err("hash mismatch - self-hosting NOT verified")
         }
     } else if cmd == "test" {

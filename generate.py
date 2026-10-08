@@ -242,6 +242,7 @@ fn parse_primary(p) {
         if match_tok(p, "ARROW") { consume(p, "IDENT") }
         return ["Fn", "", params, parse_block(p)]
     }
+    if check(p, "LBRACE") { return parse_block(p) }
     advance(p)
     return ["Unknown"]
 }

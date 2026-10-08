@@ -589,62 +589,258 @@ static Value builtin_eval_native(Value *args, int argc, int line) {
     return interp_exec(current_interp, args[0].as.ast_node);
 }
 
-static void serialize_node(Node *node, char *buf) {
-    if (!node) { strcat(buf, "None"); return; }
-    strcat(buf, "[");
-    char num[32];
-    sprintf(num, "%d", node->type);
-    strcat(buf, num);
-    strcat(buf, ",");
-    if (node->type == NODE_STRING_LIT) {
-        strcat(buf, "\"");
-        strcat(buf, node->as.string_val);
-        strcat(buf, "\"");
-    } else if (node->type == NODE_INT_LIT) {
-        sprintf(num, "%lld", (long long)node->as.int_val);
-        strcat(buf, num);
-    } else if (node->type == NODE_IDENT) {
-        strcat(buf, "\"");
-        strcat(buf, node->as.name);
-        strcat(buf, "\"");
-    } else if (node->type == NODE_BLOCK) {
-        for (int i = 0; i < node->as.block.stmts.count; i++) {
-            serialize_node(node->as.block.stmts.items[i], buf);
-            if (i < node->as.block.stmts.count - 1) strcat(buf, ",");
-        }
-    } else if (node->type == NODE_PROGRAM) {
-        for (int i = 0; i < node->as.program.count; i++) {
-            serialize_node(node->as.program.items[i], buf);
-            if (i < node->as.program.count - 1) strcat(buf, ",");
-        }
-    } else if (node->type == NODE_LET) {
-        strcat(buf, "\"");
-        strcat(buf, node->as.let_bind.name);
-        strcat(buf, "\",");
-        serialize_node(node->as.let_bind.value, buf);
-    } else if (node->type == NODE_IF) {
-        serialize_node(node->as.if_expr.cond, buf);
-        strcat(buf, ",");
-        serialize_node(node->as.if_expr.then_b, buf);
-    } else if (node->type == NODE_CALL) {
-        strcat(buf, "\"");
-        strcat(buf, node->as.call.fn_name);
-        strcat(buf, "\"");
-    } else if (node->type == NODE_FN_DEF) {
-        strcat(buf, "\"");
-        strcat(buf, node->as.fn_def.name);
-        strcat(buf, "\",");
-        serialize_node(node->as.fn_def.body, buf);
+
+static Value ast_to_list(Node *node);
+static void serialize_value(Value val, char *buf);
+
+static Value ast_to_list(Node *node) {
+    if (!node) {
+        return val_none();
     }
-    strcat(buf, "]");
+    Value list = val_list();
+    switch (node->type) {
+        case NODE_INT_LIT:
+            list_push(&list, val_string("Int"));
+            list_push(&list, val_int(node->as.int_val));
+            break;
+        case NODE_FLOAT_LIT:
+            list_push(&list, val_string("Float"));
+            list_push(&list, val_float(node->as.float_val));
+            break;
+        case NODE_STRING_LIT:
+            list_push(&list, val_string("String"));
+            list_push(&list, val_string(node->as.string_val));
+            break;
+        case NODE_BOOL_LIT:
+            list_push(&list, val_string("Bool"));
+            list_push(&list, val_bool(node->as.bool_val));
+            break;
+        case NODE_IDENT:
+            list_push(&list, val_string("Ident"));
+            list_push(&list, val_string(node->as.name));
+            break;
+        case NODE_LET:
+            list_push(&list, val_string("Let"));
+            list_push(&list, val_string(node->as.let_bind.name));
+            list_push(&list, val_bool(node->as.let_bind.is_mut));
+            list_push(&list, ast_to_list(node->as.let_bind.value));
+            break;
+        case NODE_SHADOW:
+            list_push(&list, val_string("Shadow"));
+            list_push(&list, val_string(node->as.shadow.name));
+            list_push(&list, ast_to_list(node->as.shadow.value));
+            break;
+        case NODE_ASSIGN:
+            list_push(&list, val_string("Assign"));
+            list_push(&list, val_string(node->as.assign.name));
+            list_push(&list, ast_to_list(node->as.assign.value));
+            break;
+        case NODE_IF:
+            list_push(&list, val_string("If"));
+            list_push(&list, ast_to_list(node->as.if_expr.cond));
+            list_push(&list, ast_to_list(node->as.if_expr.then_b));
+            if (node->as.if_expr.else_b) {
+                list_push(&list, ast_to_list(node->as.if_expr.else_b));
+            } else {
+                Value no = val_list();
+                list_push(&no, val_string("None"));
+                list_push(&list, no);
+            }
+            break;
+        case NODE_WHILE:
+            list_push(&list, val_string("While"));
+            list_push(&list, ast_to_list(node->as.while_loop.cond));
+            list_push(&list, ast_to_list(node->as.while_loop.body));
+            break;
+        case NODE_FOR:
+            list_push(&list, val_string("For"));
+            list_push(&list, val_string(node->as.for_loop.var_name));
+            list_push(&list, ast_to_list(node->as.for_loop.iter));
+            list_push(&list, ast_to_list(node->as.for_loop.body));
+            break;
+        case NODE_BREAK:
+            list_push(&list, val_string("Break"));
+            break;
+        case NODE_CONTINUE:
+            list_push(&list, val_string("Continue"));
+            break;
+        case NODE_BLOCK: {
+            list_push(&list, val_string("Block"));
+            Value stmts = val_list();
+            for (int i = 0; i < node->as.block.stmts.count; i++) {
+                list_push(&stmts, ast_to_list(node->as.block.stmts.items[i]));
+            }
+            list_push(&list, stmts);
+            break;
+        }
+        case NODE_RETURN:
+            list_push(&list, val_string("Return"));
+            list_push(&list, ast_to_list(node->as.ret.value));
+            break;
+        case NODE_BINARY: {
+            list_push(&list, val_string("Binary"));
+            const char *op = "";
+            switch (node->as.binary.op) {
+                case TOK_PLUS: op = "+"; break;
+                case TOK_MINUS: op = "-"; break;
+                case TOK_STAR: op = "*"; break;
+                case TOK_SLASH: op = "/"; break;
+                case TOK_PERCENT: op = "%"; break;
+                case TOK_EQ: op = "=="; break;
+                case TOK_NEQ: op = "!="; break;
+                case TOK_LT: op = "<"; break;
+                case TOK_GT: op = ">"; break;
+                case TOK_LEQ: op = "<="; break;
+                case TOK_GEQ: op = ">="; break;
+                case TOK_AND: op = "and"; break;
+                case TOK_OR: op = "or"; break;
+                case TOK_CONCAT: op = "++"; break;
+                default: op = "?"; break;
+            }
+            list_push(&list, val_string(op));
+            list_push(&list, ast_to_list(node->as.binary.left));
+            list_push(&list, ast_to_list(node->as.binary.right));
+            break;
+        }
+        case NODE_UNARY: {
+            list_push(&list, val_string("Unary"));
+            list_push(&list, val_string(node->as.unary.op == TOK_MINUS ? "-" : "not"));
+            list_push(&list, ast_to_list(node->as.unary.operand));
+            break;
+        }
+        case NODE_CALL: {
+            list_push(&list, val_string("Call"));
+            Node ident_node; ident_node.type = NODE_IDENT; ident_node.as.name = node->as.call.fn_name;
+            list_push(&list, ast_to_list(&ident_node));
+            Value args = val_list();
+            for (int i = 0; i < node->as.call.args.count; i++) {
+                list_push(&args, ast_to_list(node->as.call.args.items[i]));
+            }
+            list_push(&list, args);
+            break;
+        }
+        case NODE_FN_DEF: {
+            list_push(&list, val_string("Fn"));
+            list_push(&list, val_string(node->as.fn_def.name));
+            Value params = val_list();
+            for (int i = 0; i < node->as.fn_def.params.count; i++) {
+                list_push(&params, val_string(node->as.fn_def.params.items[i].name));
+            }
+            list_push(&list, params);
+            list_push(&list, ast_to_list(node->as.fn_def.body));
+            break;
+        }
+        case NODE_LAMBDA: {
+            list_push(&list, val_string("Fn"));
+            list_push(&list, val_string(""));
+            Value params = val_list();
+            for (int i = 0; i < node->as.lambda.params.count; i++) {
+                list_push(&params, val_string(node->as.lambda.params.items[i].name));
+            }
+            list_push(&list, params);
+            list_push(&list, ast_to_list(node->as.lambda.body));
+            break;
+        }
+        case NODE_SOME:
+            list_push(&list, val_string("Some"));
+            list_push(&list, ast_to_list(node->as.some_val.value));
+            break;
+        case NODE_NONE:
+            list_push(&list, val_string("None"));
+            break;
+        case NODE_OK:
+            list_push(&list, val_string("Ok"));
+            list_push(&list, ast_to_list(node->as.ok_val.value));
+            break;
+        case NODE_ERR:
+            list_push(&list, val_string("Err"));
+            list_push(&list, ast_to_list(node->as.err_val.value));
+            break;
+        case NODE_MATCH: {
+            list_push(&list, val_string("Match"));
+            list_push(&list, ast_to_list(node->as.match_expr.subject));
+            Value arms = val_list();
+            for (int i = 0; i < node->as.match_expr.arm_count; i++) {
+                Value arm = val_list();
+                const char *pat_type = node->as.match_expr.arms[i].pattern;
+                list_push(&arm, val_string(pat_type));
+                list_push(&arm, val_string(node->as.match_expr.arms[i].binding ? node->as.match_expr.arms[i].binding : ""));
+                list_push(&arm, ast_to_list(node->as.match_expr.arms[i].body));
+                list_push(&arms, arm);
+            }
+            list_push(&list, arms);
+            break;
+        }
+        case NODE_LIST_LIT: {
+            list_push(&list, val_string("ListLit"));
+            Value elems = val_list();
+            for (int i = 0; i < node->as.list_lit.elements.count; i++) {
+                list_push(&elems, ast_to_list(node->as.list_lit.elements.items[i]));
+            }
+            list_push(&list, elems);
+            break;
+        }
+        case NODE_INDEX:
+            list_push(&list, val_string("Index"));
+            list_push(&list, ast_to_list(node->as.index.array));
+            list_push(&list, ast_to_list(node->as.index.index));
+            break;
+        case NODE_UNWRAP:
+            list_push(&list, val_string("Unwrap"));
+            list_push(&list, ast_to_list(node->as.unwrap.operand));
+            break;
+        case NODE_PROGRAM: {
+            list_push(&list, val_string("Program"));
+            Value stmts = val_list();
+            for (int i = 0; i < node->as.program.count; i++) {
+                list_push(&stmts, ast_to_list(node->as.program.items[i]));
+            }
+            list_push(&list, stmts);
+            break;
+        }
+    }
+    return list;
+}
+
+static void serialize_value(Value val, char *buf) {
+    if (val.type == VAL_NONE) { strcat(buf, "[\"None\"]"); return; }
+    if (val.type == VAL_STRING) {
+        strcat(buf, "\"");
+        strcat(buf, val.as.string_val);
+        strcat(buf, "\"");
+    } else if (val.type == VAL_INT) {
+        char num[32]; sprintf(num, "%lld", (long long)val.as.int_val); strcat(buf, num);
+    } else if (val.type == VAL_FLOAT) {
+        char num[64]; sprintf(num, "%g", val.as.float_val); strcat(buf, num);
+    } else if (val.type == VAL_BOOL) {
+        strcat(buf, val.as.bool_val ? "true" : "false");
+    } else if (val.type == VAL_LIST) {
+        strcat(buf, "[");
+        for (int i = 0; i < val.as.list->count; i++) {
+            serialize_value(val.as.list->items[i], buf);
+            if (i < val.as.list->count - 1) strcat(buf, ",");
+        }
+        strcat(buf, "]");
+    } else {
+        strcat(buf, "null");
+    }
 }
 
 static Value builtin_serialize_ast(Value *args, int argc, int line) {
     (void)line;
-    if (argc != 1 || args[0].type != VAL_AST_NODE) return val_string("None");
-    char *buf = malloc(10 * 1024 * 1024); // 10MB buf
+    if (argc != 1) return val_string("None");
+    char *buf = malloc(10 * 1024 * 1024);
     buf[0] = 0;
-    serialize_node(args[0].as.ast_node, buf);
+    
+    if (args[0].type == VAL_AST_NODE) {
+        Value list = ast_to_list(args[0].as.ast_node);
+        serialize_value(list, buf);
+    } else if (args[0].type == VAL_LIST) {
+        serialize_value(args[0], buf);
+    } else {
+        strcat(buf, "None");
+    }
+    
     Value res = val_string(buf);
     free(buf);
     return res;

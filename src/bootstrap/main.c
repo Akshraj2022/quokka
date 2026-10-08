@@ -85,9 +85,9 @@ static int run(const char *source) {
     /* Interpret */
     Interp interp;
     interp_init(&interp);
-    interp_exec(&interp, program);
+    Value eval_result = interp_exec(&interp, program);
 
-    int result = interp.had_error ? 1 : 0;
+    int result = (interp.had_error || eval_result.type == VAL_ERR) ? 1 : 0;
     interp_free(&interp);
     return result;
 }
@@ -180,9 +180,9 @@ int main(int argc, char *argv[]) {
     }
 
     /* Interpret */
-    interp_exec(&interp, program);
+    Value eval_result = interp_exec(&interp, program);
 
-    int result = interp.had_error ? 1 : 0;
+    int result = (interp.had_error || eval_result.type == VAL_ERR) ? 1 : 0;
     free(source);
     interp_free(&interp);
     return result;

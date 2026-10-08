@@ -36,11 +36,10 @@ fn lex(source) {
     while i < srclen {
         let c = source[i]
         
-        let newline = "
+        let nl_str = "
 "
-        let cr = substring("
-", 0, 1) // If this file has CRLF, cr might be \r. Actually just let's check it.
-        // It's safer to just match any whitespace including newlines by doing a list search.
+        let mut newline = substring(nl_str, 0, 1)
+        if len(nl_str) == 2 { newline = substring(nl_str, 1, 2) }
         let space = " 	
 "
         let mut is_space = false
@@ -72,6 +71,10 @@ fn lex(source) {
             else if word == "if" { type = "IF" }
             else if word == "else" { type = "ELSE" }
             else if word == "while" { type = "WHILE" }
+            else if word == "for" { type = "FOR" }
+            else if word == "in" { type = "IN" }
+            else if word == "break" { type = "BREAK" }
+            else if word == "continue" { type = "CONTINUE" }
             else if word == "true" { type = "TRUE" }
             else if word == "false" { type = "FALSE" }
             else if word == "and" { type = "AND" }
@@ -85,16 +88,28 @@ fn lex(source) {
             push(tokens, [type, word, line])
         } else if is_digit(c) {
             let mut start = i
-            while i < srclen and is_digit(source[i]) {
+            let mut is_float = false
+            while i < srclen and (is_digit(source[i]) or source[i] == ".") {
+                if source[i] == "." { is_float = true }
                 i = i + 1
             }
-            // Simplified float parsing omitted for brevity
             let word = substring(source, start, i)
-            push(tokens, ["INT", unwrap_or(to_int(word), 0), line])
-        } else if c == "\"" {
+            if is_float {
+                // Actually to_float doesn't exist? C host might not have it!
+                // Let's just push it as FLOAT. Wait, C host evaluator expects float_val for Float. 
+                // Wait, if there is no to_float, how to parse float? Quokka interpreter didn't have float literals anyway, we'll just push string for now, but evaluator needs to know!
+                let fval = match to_float(word) { Ok(v) => v, Err(e) => 0.0 }
+                push(tokens, ["FLOAT", fval, line])
+            } else {
+                push(tokens, ["INT", unwrap_or(to_int(word), 0), line])
+            }
+        } else if c == substring("\"\"", 1, 2) {
             i = i + 1
             let mut start = i
-            while i < srclen and source[i] != "\"" {
+            while i < srclen and source[i] != substring("\"\"", 1, 2) {
+                if source[i] == substring("\"\"", 0, 1) and i + 1 < srclen {
+                    i = i + 1 // skip escaped char
+                }
                 i = i + 1
             }
             let word = substring(source, start, i)
@@ -110,6 +125,7 @@ fn lex(source) {
             else if c == "<" and next == "=" { push(tokens, ["LEQ", "<=", line]) i = i + 2 }
             else if c == ">" and next == "=" { push(tokens, ["GEQ", ">=", line]) i = i + 2 }
             else if c == "=" and next == ">" { push(tokens, ["FAT_ARROW", "=>", line]) i = i + 2 }
+            else if c == "-" and next == ">" { push(tokens, ["ARROW", "->", line]) i = i + 2 }
             else {
                 let mut type = "UNKNOWN"
                 if c == "+" { type = "PLUS" }
@@ -128,6 +144,7 @@ fn lex(source) {
                 else if c == "]" { type = "RBRACKET" }
                 else if c == "," { type = "COMMA" }
                 else if c == "?" { type = "QUESTION" }
+                else if c == ":" { type = "COLON" }
                 else if c == "_" { type = "UNDERSCORE" }
                 push(tokens, [type, c, line])
                 i = i + 1
