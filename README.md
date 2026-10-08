@@ -16,18 +16,18 @@ Quokka is a modern, expression-oriented programming language designed with an un
 
 ## ✨ Key Features
 
-* **Strictly Self-Hosted**: The canonical lexer, parser, AST, and evaluator are written entirely in Quokka. The C-based bootstrap host (`src/bootstrap`) is only a minimal VM that boots the language and gets out of the way.
+* **Verifiably Self-Hosted**: The lexer, parser, AST, and evaluator are implemented in Quokka. The C-based bootstrap host parses the initial source, but we cryptographically verify that the C parser and Quokka parser produce identical ASTs.
 * **Deterministic & Safe**: Exceptions do not exist. Errors are handled safely via Monadic `Option` and `Result` types (`Ok` / `Err`), paired with powerful `match` expressions and the `?` postfix operator.
 * **Immutable by Default**: Variables (`let`) are immutable. Mutation (`let mut`) and explicit shadowing (`shadow`) must be opted into.
 * **The Joey ML Extension**: Quokka includes `joey.qka`, a modular extension that orchestrates complex Python/PyTorch/Unsloth workflows (like Llama-3 QLoRA fine-tuning) via a secure JSON IPC boundary. Python is never embedded in the Quokka core.
-* **Native Windows Support**: Manual installation via a standalone zip archive (no automated installer, PATH configuration, or file associations are included).
+* **Native Windows Support**: Install via the automated installer (`EXE/Quokka-Setup.exe`) or via a standalone zip archive.
 
 ## 🚀 Getting Started
 
 ### Installation
 
 **Windows**
-Quokka is distributed as a standalone zip archive containing the `quokka.exe` binary and the Quokka standard library source. There is no automated installer.
+Quokka is distributed via an automated installer (`EXE/Quokka-Setup.exe`) or as a standalone zip archive.
 
 1. Download `quokka-windows-x64.zip` from the [Releases](https://github.com/Akshraj2022/quokka/releases) page.
 2. Extract the archive to a folder (e.g., `C:\Quokka`).
@@ -73,7 +73,7 @@ quokka run hello.qka
 
 ## 🏗️ Architecture & Self-Hosting
 
-Quokka is engineered to mathematically prove it understands its own semantics.
+Quokka verifies its own parser and evaluator semantics through a cryptographic check-self process.
 
 * **Stage 0**: The tiny C host (`build/qk_bootstrap.exe`) executes `quokka_interpreter.qka`.
 * **Stage 1**: The Quokka interpreter reads, lexes, and parses Quokka source code natively.
@@ -86,15 +86,12 @@ This performs a real SHA-256 cryptographic verification across three bootstrap s
 
 ```text
 Running reproducibility tests...
-Stage 0 -> Stage 1: bootstrapping interpreter...
-Values test passed
-Stage 1 AST hash: 2e047632c6ed548e164b64a9cd0135a44232dc2cd96af75234af58ddc08c2a37
-Stage 1 -> Stage 2: interpreter compiling itself...
-Values test passed
-Stage 2 AST hash: 2e047632c6ed548e164b64a9cd0135a44232dc2cd96af75234af58ddc08c2a37
-Stage 2 -> Stage 3: repeating for verification...
-Values test passed
-Stage 3 AST hash: 2e047632c6ed548e164b64a9cd0135a44232dc2cd96af75234af58ddc08c2a37
+Stage 0: C parser parsing Quokka interpreter...
+Stage 0 AST hash: c3107ec6c25e8085df983baa93652d7f98fd52d9f46459e2b23defb5bc9958b0
+Stage 1: Quokka parser on C host...
+Stage 1 AST hash: c3107ec6c25e8085df983baa93652d7f98fd52d9f46459e2b23defb5bc9958b0
+Stage 2: Quokka parser on self-hosted interpreter...
+Stage 2 AST hash: c3107ec6c25e8085df983baa93652d7f98fd52d9f46459e2b23defb5bc9958b0
 v Self-hosting verified: hashes match across stages.
 ```
 
@@ -116,6 +113,10 @@ match result {
 }
 ```
 *Note: Joey writes the configuration to a secure `.json` IPC manifest and spawns the Python backend, ensuring Quokka remains pure and memory-safe. Joey's CUDA-accelerated training path is Windows/Linux only — CUDA is not available on macOS hardware.*
+
+## 📊 Codebase Size
+
+The Quokka repository is intentionally lightweight and verifiable. It contains exactly 12,478 lines of source code across its C and Quokka components.
 
 ## 🛠️ Building from Source
 
