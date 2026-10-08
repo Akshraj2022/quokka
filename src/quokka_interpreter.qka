@@ -436,15 +436,22 @@ fn main() {
                 
                 let mut i = 0
                 let srclen = len(source)
+                let mut cr = ""
+                let mut lf = literal_nl
+                if len(nl_str) == 2 {
+                    cr = substring(nl_str, 0, 1)
+                    lf = substring(nl_str, 1, 2)
+                }
                 while i < srclen {
                     let c = substring(source, i, i+1)
-                    if c == literal_nl { c_code = c_code ++ slash_n }
+                    if c == lf { c_code = c_code ++ slash_n }
+                    else if c == cr { }
                     else if c == quote { c_code = c_code ++ slash_quote }
                     else if c == backslash { c_code = c_code ++ slash_slash }
                     else { c_code = c_code ++ c }
                     i = i + 1
                 }
-                c_code = c_code ++ quote ++ ";" ++ literal_nl ++ literal_nl
+                c_code = c_code ++ quote ++ ";" ++ lf ++ lf
                 
                 c_code = c_code ++ "#define main quokka_main" ++ literal_nl
                 c_code = c_code ++ "#include " ++ quote ++ "../src/bootstrap/main.c" ++ quote ++ literal_nl
@@ -452,7 +459,7 @@ fn main() {
                 
                 c_code = c_code ++ "int main(int argc, char* argv[]) {" ++ literal_nl
                 
-                c_code = c_code ++ "    if (argc >= 2 && (strcmp(argv[1], \"watch\") == 0 || (argc >= 3 && strcmp(argv[1], \"joey\") == 0 && strcmp(argv[2], \"status\") == 0))) { extern int joey_watch_main(void); return joey_watch_main(); }" ++ literal_nl
+                c_code = c_code ++ "    if (argc >= 2 && (strcmp(argv[1], " ++ quote ++ "watch" ++ quote ++ ") == 0 || (argc >= 3 && strcmp(argv[1], " ++ quote ++ "joey" ++ quote ++ ") == 0 && strcmp(argv[2], " ++ quote ++ "status" ++ quote ++ ") == 0))) { extern int joey_watch_main(void); return joey_watch_main(); }" ++ literal_nl
                 c_code = c_code ++ "    Value sys_args = val_list();" ++ literal_nl
                 c_code = c_code ++ "    for (int i = 0; i < argc; i++) list_push(&sys_args, val_string(argv[i]));" ++ literal_nl
                 c_code = c_code ++ "    Interp interp; interp_init(&interp);" ++ literal_nl
@@ -466,10 +473,46 @@ fn main() {
                 
                 file_write("build/quokka_standalone.c", c_code)
                 println("Compiling standalone interpreter...")
-                let build_res = exec(["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-o", "build/quokka_standalone.exe", "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lws2_32"])
+                
+                let os = os_name()
+                let mut exe_suffix = ""
+                if os == "windows" { exe_suffix = ".exe" }
+                
+                let mut gcc_args = ["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-D_DEFAULT_SOURCE", "-o", "build/quokka_standalone" ++ exe_suffix, "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lm"]
+                
+                if os == "windows" {
+                    push(gcc_args, "-lws2_32")
+                }
+                
+                let build_res = exec(gcc_args)
                 match build_res {
-                    Ok(res) => println("Bootstrap complete! The C-version is retired. Run 'build/quokka_standalone.exe'"),
-                    Err(e) => println("Compilation failed: " ++ e)
+                    Ok(res) => {
+                        let status = res[0][1]
+                        if status == 0 {
+                            let test_res = exec(["build/quokka_standalone" ++ exe_suffix, "src/quokka_interpreter.qka", "run", "examples/hello.qk"])
+                            match test_res {
+                                Ok(tres) => {
+                                    if tres[0][1] == 0 {
+                                        println("Bootstrap complete! The C-version is retired. Run 'build/quokka_standalone" ++ exe_suffix ++ "'")
+                                    } else {
+                                        println("Bootstrap binary failed hello.qk test with exit code " ++ to_string(tres[0][1]))
+                                        let fail = 1 / 0
+                                    }
+                                },
+                                Err(e) => {
+                                    println("Failed to run hello.qk check: " ++ e)
+                                    let fail = 1 / 0
+                                }
+                            }
+                        } else {
+                            println("Compilation failed with status " ++ to_string(status) ++ ": " ++ res[1][1] ++ res[2][1])
+                            let fail = 1 / 0
+                        }
+                    },
+                    Err(e) => {
+                        println("Compilation execution failed: " ++ e)
+                        let fail = 1 / 0
+                    }
                 }
             },
             Err(e) => println("Error reading interpreter source: " ++ e)

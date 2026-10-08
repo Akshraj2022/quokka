@@ -494,9 +494,12 @@ static Value builtin_exec(Value *args, int argc, int line) {
     char cmd[1024] = {0};
     for (int i = 0; i < args[0].as.list->count; i++) {
         if (args[0].as.list->items[i].type != VAL_STRING) return val_err(val_string("Args must be strings"));
-        strcat(cmd, "\"");
-        strcat(cmd, args[0].as.list->items[i].as.string_val);
-        strcat(cmd, "\" ");
+        const char *arg = args[0].as.list->items[i].as.string_val;
+        bool has_space = strchr(arg, ' ') != NULL;
+        if (has_space) strcat(cmd, "\"");
+        strcat(cmd, arg);
+        if (has_space) strcat(cmd, "\"");
+        strcat(cmd, " ");
     }
     
     // Redirect stdout to a temp file
@@ -515,6 +518,18 @@ static Value builtin_exec(Value *args, int argc, int line) {
         fclose(f);
     }
     
+    FILE *ferr = fopen(".qka_exec_err", "rb");
+    char *err_str = NULL;
+    if (ferr) {
+        fseek(ferr, 0, SEEK_END);
+        long fsize = ftell(ferr);
+        fseek(ferr, 0, SEEK_SET);
+        err_str = malloc(fsize + 1);
+        if (fsize > 0) fread(err_str, fsize, 1, ferr);
+        err_str[fsize] = 0;
+        fclose(ferr);
+    }
+
     Value map = val_list(); // Representing dict as list of [key, val] pairs
     Value k_status = val_string("status");
     Value v_status = val_int(status);
@@ -526,6 +541,12 @@ static Value builtin_exec(Value *args, int argc, int line) {
     if (out_str) free(out_str);
     Value pair2 = val_list(); list_push(&pair2, k_out); list_push(&pair2, v_out);
     list_push(&map, pair2);
+    
+    Value k_err = val_string("stderr");
+    Value v_err = err_str ? val_string(err_str) : val_string("");
+    if (err_str) free(err_str);
+    Value pair3 = val_list(); list_push(&pair3, k_err); list_push(&pair3, v_err);
+    list_push(&map, pair3);
     
     return val_ok(map);
 }
@@ -686,10 +707,27 @@ static Value builtin_clear_captured(Value *args, int argc, int line) {
     return val_unit();
 }
 
+static Value builtin_os_name(Value *args, int argc, int line) {
+    if (argc != 0) {
+        fprintf(stderr, "[line %d] Runtime error: os_name expects 0 arguments\n", line);
+        return val_unit();
+    }
+#if defined(_WIN32) || defined(__WIN32__) || defined(__CYGWIN__) || defined(__MINGW32__)
+    return val_string("windows");
+#elif defined(__APPLE__)
+    return val_string("macos");
+#elif defined(__linux__)
+    return val_string("linux");
+#else
+    return val_string("unknown");
+#endif
+}
+
 /* ============================================================
  * Interpreter
  * ============================================================ */
 void interp_register_builtins(Interp *interp) {
+    env_define(interp->globals, "os_name",    val_builtin(builtin_os_name),   false);
     env_define(interp->globals, "print",      val_builtin(builtin_print),     false);
     env_define(interp->globals, "println",    val_builtin(builtin_println),   false);
     env_define(interp->globals, "to_string",  val_builtin(builtin_to_string), false);
