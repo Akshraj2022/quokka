@@ -16,7 +16,7 @@ jobs:
       - name: Compile C bootstrap (Stage 0)
         run: |
           mkdir -p build
-          clang -std=c11 -arch arm64 src/bootstrap/*.c src/joey/joey_native.c -o build/qk_bootstrap
+          clang -std=c11 -D_DEFAULT_SOURCE -arch arm64 src/bootstrap/*.c src/joey/joey_native.c src/joey/joey_watch.c -o build/qk_bootstrap
 
       - name: Verify Stage 0 binary architecture
         run: file build/qk_bootstrap | grep -q "arm64" || (echo "Build is not arm64" && exit 1)
@@ -25,12 +25,36 @@ jobs:
         run: ./build/qk_bootstrap src/quokka_interpreter.qka bootstrap
 
       - name: Run quokka check-self
-        run: ./build/qk_bootstrap src/quokka_interpreter.qka check-self
+        run: ./build/qk_bootstrap src/quokka_interpreter.qka check-self || exit 1
 
       - name: Run test suite
         run: |
-          for f in tests/conformance/*.qka; do
-            ./build/qk_bootstrap src/quokka_interpreter.qka run "$f" || exit 1
+          shopt -s nullglob
+          tests=(tests/conformance/*.qk)
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo "No tests found in tests/conformance/*.qk"
+            exit 1
+          fi
+          for f in "${tests[@]}"; do
+            out=$(./build/qk_bootstrap "$f" 2>&1)
+            if [ $? -ne 0 ]; then
+              echo "FAIL $f: exit non-zero"
+              echo "$out"
+              exit 1
+            fi
+            if ! echo "$out" | grep -q "test passed"; then
+              echo "FAIL $f: missing 'test passed'"
+              echo "$out"
+              exit 1
+            fi
+          done
+          examples=(examples/*.qk)
+          if [ ${#examples[@]} -eq 0 ]; then
+            echo "No examples found in examples/*.qk"
+            exit 1
+          fi
+          for f in "${examples[@]}"; do
+            ./build/qk_bootstrap "$f" || exit 1
           done
 
       - name: Package as tarball
@@ -56,7 +80,7 @@ jobs:
       - name: Compile C bootstrap (Stage 0)
         run: |
           mkdir -p build
-          clang -std=c11 -arch x86_64 src/bootstrap/*.c src/joey/joey_native.c -o build/qk_bootstrap
+          clang -std=c11 -D_DEFAULT_SOURCE -arch x86_64 src/bootstrap/*.c src/joey/joey_native.c src/joey/joey_watch.c -o build/qk_bootstrap
 
       - name: Verify Stage 0 binary architecture
         run: file build/qk_bootstrap | grep -q "x86_64" || (echo "Build is not x86_64" && exit 1)
@@ -65,12 +89,36 @@ jobs:
         run: ./build/qk_bootstrap src/quokka_interpreter.qka bootstrap
 
       - name: Run quokka check-self
-        run: ./build/qk_bootstrap src/quokka_interpreter.qka check-self
+        run: ./build/qk_bootstrap src/quokka_interpreter.qka check-self || exit 1
 
       - name: Run test suite
         run: |
-          for f in tests/conformance/*.qka; do
-            ./build/qk_bootstrap src/quokka_interpreter.qka run "$f" || exit 1
+          shopt -s nullglob
+          tests=(tests/conformance/*.qk)
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo "No tests found in tests/conformance/*.qk"
+            exit 1
+          fi
+          for f in "${tests[@]}"; do
+            out=$(./build/qk_bootstrap "$f" 2>&1)
+            if [ $? -ne 0 ]; then
+              echo "FAIL $f: exit non-zero"
+              echo "$out"
+              exit 1
+            fi
+            if ! echo "$out" | grep -q "test passed"; then
+              echo "FAIL $f: missing 'test passed'"
+              echo "$out"
+              exit 1
+            fi
+          done
+          examples=(examples/*.qk)
+          if [ ${#examples[@]} -eq 0 ]; then
+            echo "No examples found in examples/*.qk"
+            exit 1
+          fi
+          for f in "${examples[@]}"; do
+            ./build/qk_bootstrap "$f" || exit 1
           done
 
       - name: Package as tarball
