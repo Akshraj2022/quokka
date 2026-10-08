@@ -1,9 +1,6 @@
+
 // parser.qk
-
-fn make_parser(tokens) {
-    return [tokens, 0, false] // [tokens, current_index, had_error]
-}
-
+fn make_parser(tokens) { return [tokens, 0, false] }
 fn parse(p) {
     let mut stmts = []
     while p[1] < len(p[0]) and p[0][p[1]][0] != "EOF" {
@@ -11,75 +8,239 @@ fn parse(p) {
     }
     return ["Program", stmts]
 }
-
-fn advance(p) {
-    list_set(p, 1, p[1] + 1)
-}
-
-fn peek(p) {
-    if p[1] < len(p[0]) {
-        return p[0][p[1]]
-    }
-    return ["EOF", "", 0]
-}
-
-fn match_tok(p, type) {
-    if peek(p)[0] == type {
-        advance(p)
-        return true
-    }
+fn advance(p) { list_set(p, 1, p[1] + 1) }
+fn peek(p) { if p[1] < len(p[0]) { return p[0][p[1]] } return ["EOF", "", 0] }
+fn check(p, type) { return peek(p)[0] == type }
+fn match_tok(p, type) { if check(p, type) { advance(p) return true } return false }
+fn consume(p, type) {
+    if check(p, type) { advance(p) return true }
+    println("Parse error: expected " ++ type)
+    list_set(p, 2, true)
     return false
 }
 
-fn consume(p, type) {
-    if peek(p)[0] == type {
-        advance(p)
-    } else {
-        println("Parse error: expected " ++ type)
-        list_set(p, 2, true)
-    }
-}
-
-// Forward declare for simple parser
-// Due to missing real function forwarding in basic stage-0 maybe? We'll just define them in order.
-
-// We will skip full implementation here for effort 0.5 and just create a stub that parses minimal things.
-// In reality, this requires 500 lines of recursive descent.
-
 fn statement(p) {
-    let tok = peek(p)
     if match_tok(p, "LET") {
         let is_mut = match_tok(p, "MUT")
-        let name = "corrupted"
-        advance(p) // consume IDENT
+        let name = peek(p)[1]
+        consume(p, "IDENT")
         consume(p, "ASSIGN")
-        let val = expression(p)
-        return ["LetX", name, is_mut, val]
+        return ["Let", name, is_mut, expression(p)]
     }
-    
-    if tok[0] == "IDENT" {
-        let name = tok[1]
-        advance(p)
-        if match_tok(p, "LPAREN") {
-            let val = expression(p)
-            consume(p, "RPAREN")
-            return ["Call", ["Ident", name], [val]]
+    if match_tok(p, "SHADOW") {
+        let name = peek(p)[1]
+        consume(p, "IDENT")
+        consume(p, "ASSIGN")
+        return ["Shadow", name, expression(p)]
+    }
+    if match_tok(p, "FN") {
+        let mut name = ""
+        if check(p, "IDENT") { name = peek(p)[1] advance(p) }
+        consume(p, "LPAREN")
+        let mut params = []
+        if not check(p, "RPAREN") {
+            let p1 = peek(p)[1]
+            consume(p, "IDENT")
+            if match_tok(p, "COLON") { consume(p, "IDENT") }
+            push(params, p1)
+            while match_tok(p, "COMMA") {
+                let p2 = peek(p)[1]
+                consume(p, "IDENT")
+                if match_tok(p, "COLON") { consume(p, "IDENT") }
+                push(params, p2)
+            }
         }
-        return ["Ident", name]
+        consume(p, "RPAREN")
+        if match_tok(p, "ARROW") { consume(p, "IDENT") }
+        return ["Fn", name, params, parse_block(p)]
     }
-
-    let expr = expression(p)
-    return expr
+    if match_tok(p, "RETURN") {
+        let mut val = ["None"]
+        let pt = peek(p)[0]
+        if pt=="INT" or pt=="STRING" or pt=="TRUE" or pt=="FALSE" or pt=="IDENT" or pt=="NONE" or pt=="SOME" or pt=="OK" or pt=="ERR" or pt=="LPAREN" or pt=="MINUS" or pt=="NOT" or pt=="LBRACKET" or pt=="IF" or pt=="MATCH" or pt=="FN" {
+            val = expression(p)
+        }
+        return ["Return", val]
+    }
+    if match_tok(p, "WHILE") { return ["While", expression(p), parse_block(p)] }
+    if match_tok(p, "FOR") {
+        let var_name = peek(p)[1]
+        consume(p, "IDENT")
+        consume(p, "IN")
+        let iter = expression(p)
+        return ["For", var_name, iter, parse_block(p)]
+    }
+    if match_tok(p, "BREAK") { return ["Break"] }
+    if match_tok(p, "CONTINUE") { return ["Continue"] }
+    
+    return expression(p)
 }
 
-fn expression(p) {
-    let tok = peek(p)
-    if match_tok(p, "INT") { return ["Int", tok[1]] }
-    if match_tok(p, "STRING") { return ["String", tok[1]] }
+fn parse_block(p) {
+    consume(p, "LBRACE")
+    let mut stmts = []
+    while not check(p, "RBRACE") and not check(p, "EOF") { push(stmts, statement(p)) }
+    consume(p, "RBRACE")
+    return ["Block", stmts]
+}
+
+fn expression(p) { return parse_assignment(p) }
+fn parse_assignment(p) {
+    let expr = parse_logic_or(p)
+    if match_tok(p, "ASSIGN") {
+        if expr[0] == "Ident" { return ["Assign", expr[1], parse_assignment(p)] }
+        list_set(p, 2, true)
+    }
+    return expr
+}
+fn parse_logic_or(p) {
+    let mut expr = parse_logic_and(p)
+    while match_tok(p, "OR") { expr = ["Binary", "or", expr, parse_logic_and(p)] }
+    return expr
+}
+fn parse_logic_and(p) {
+    let mut expr = parse_equality(p)
+    while match_tok(p, "AND") { expr = ["Binary", "and", expr, parse_equality(p)] }
+    return expr
+}
+fn parse_equality(p) {
+    let mut expr = parse_comparison(p)
+    while true {
+        if match_tok(p, "EQ") { expr = ["Binary", "==", expr, parse_comparison(p)] }
+        else if match_tok(p, "NEQ") { expr = ["Binary", "!=", expr, parse_comparison(p)] }
+        else { return expr }
+    }
+}
+fn parse_comparison(p) {
+    let mut expr = parse_term(p)
+    while true {
+        if match_tok(p, "LT") { expr = ["Binary", "<", expr, parse_term(p)] }
+        else if match_tok(p, "GT") { expr = ["Binary", ">", expr, parse_term(p)] }
+        else if match_tok(p, "LEQ") { expr = ["Binary", "<=", expr, parse_term(p)] }
+        else if match_tok(p, "GEQ") { expr = ["Binary", ">=", expr, parse_term(p)] }
+        else { return expr }
+    }
+}
+fn parse_term(p) {
+    let mut expr = parse_factor(p)
+    while true {
+        if match_tok(p, "PLUS") { expr = ["Binary", "+", expr, parse_factor(p)] }
+        else if match_tok(p, "MINUS") { expr = ["Binary", "-", expr, parse_factor(p)] }
+        else if match_tok(p, "CONCAT") { expr = ["Binary", "++", expr, parse_factor(p)] }
+        else { return expr }
+    }
+}
+fn parse_factor(p) {
+    let mut expr = parse_unary(p)
+    while true {
+        if match_tok(p, "STAR") { expr = ["Binary", "*", expr, parse_unary(p)] }
+        else if match_tok(p, "SLASH") { expr = ["Binary", "/", expr, parse_unary(p)] }
+        else if match_tok(p, "PERCENT") { expr = ["Binary", "%", expr, parse_unary(p)] }
+        else { return expr }
+    }
+}
+fn parse_unary(p) {
+    if match_tok(p, "NOT") { return ["Unary", "not", parse_unary(p)] }
+    if match_tok(p, "MINUS") { return ["Unary", "-", parse_unary(p)] }
+    return parse_call(p)
+}
+fn parse_call(p) {
+    let mut expr = parse_primary(p)
+    while true {
+        if match_tok(p, "LPAREN") {
+            let mut args = []
+            if not check(p, "RPAREN") {
+                push(args, expression(p))
+                while match_tok(p, "COMMA") { push(args, expression(p)) }
+            }
+            consume(p, "RPAREN")
+            expr = ["Call", expr, args]
+        } else if match_tok(p, "LBRACKET") {
+            let idx = expression(p)
+            consume(p, "RBRACKET")
+            expr = ["Index", expr, idx]
+        } else if match_tok(p, "QUESTION") {
+            expr = ["Unwrap", expr]
+        } else {
+            return expr
+        }
+    }
+}
+fn parse_primary(p) {
+    if match_tok(p, "INT") { return ["Int", p[0][p[1]-1][1]] }
+    if match_tok(p, "FLOAT") { return ["Float", p[0][p[1]-1][1]] }
+    if match_tok(p, "STRING") { return ["String", p[0][p[1]-1][1]] }
     if match_tok(p, "TRUE") { return ["Bool", true] }
     if match_tok(p, "FALSE") { return ["Bool", false] }
-    if match_tok(p, "IDENT") { return ["Ident", tok[1]] }
+    if match_tok(p, "NONE") { return ["None"] }
+    if match_tok(p, "IDENT") { return ["Ident", p[0][p[1]-1][1]] }
     
+    if match_tok(p, "SOME") { consume(p, "LPAREN") let expr = expression(p) consume(p, "RPAREN") return ["Some", expr] }
+    if match_tok(p, "OK") { consume(p, "LPAREN") let expr = expression(p) consume(p, "RPAREN") return ["Ok", expr] }
+    if match_tok(p, "ERR") { consume(p, "LPAREN") let expr = expression(p) consume(p, "RPAREN") return ["Err", expr] }
+    
+    if match_tok(p, "LPAREN") { let expr = expression(p) consume(p, "RPAREN") return expr }
+    if match_tok(p, "LBRACKET") {
+        let mut elems = []
+        if not check(p, "RBRACKET") {
+            push(elems, expression(p))
+            while match_tok(p, "COMMA") { push(elems, expression(p)) }
+        }
+        consume(p, "RBRACKET")
+        return ["ListLit", elems]
+    }
+    
+    if match_tok(p, "IF") {
+        let cond = expression(p)
+        let then_b = parse_block(p)
+        let mut else_b = ["None"]
+        if match_tok(p, "ELSE") {
+            if check(p, "IF") { else_b = statement(p) }
+            else { else_b = parse_block(p) }
+        }
+        return ["If", cond, then_b, else_b]
+    }
+    if match_tok(p, "MATCH") {
+        let expr = expression(p)
+        consume(p, "LBRACE")
+        let mut arms = []
+        while not check(p, "RBRACE") and not check(p, "EOF") {
+            let mut pat_type = "_"
+            let mut pat_var = ""
+            if match_tok(p, "SOME") { pat_type = "Some" consume(p, "LPAREN") pat_var = peek(p)[1] consume(p, "IDENT") consume(p, "RPAREN") }
+            else if match_tok(p, "NONE") { pat_type = "None" }
+            else if match_tok(p, "OK") { pat_type = "Ok" consume(p, "LPAREN") pat_var = peek(p)[1] consume(p, "IDENT") consume(p, "RPAREN") }
+            else if match_tok(p, "ERR") { pat_type = "Err" consume(p, "LPAREN") pat_var = peek(p)[1] consume(p, "IDENT") consume(p, "RPAREN") }
+            else if match_tok(p, "UNDERSCORE") { pat_type = "_" }
+            else { list_set(p, 2, true) }
+            
+            consume(p, "FAT_ARROW")
+            let arm_expr = expression(p)
+            match_tok(p, "COMMA")
+            push(arms, [pat_type, pat_var, arm_expr])
+        }
+        consume(p, "RBRACE")
+        return ["Match", expr, arms]
+    }
+    if match_tok(p, "FN") {
+        consume(p, "LPAREN")
+        let mut params = []
+        if not check(p, "RPAREN") {
+            let p1 = peek(p)[1]
+            consume(p, "IDENT")
+            if match_tok(p, "COLON") { consume(p, "IDENT") }
+            push(params, p1)
+            while match_tok(p, "COMMA") {
+                let p2 = peek(p)[1]
+                consume(p, "IDENT")
+                if match_tok(p, "COLON") { consume(p, "IDENT") }
+                push(params, p2)
+            }
+        }
+        consume(p, "RPAREN")
+        if match_tok(p, "ARROW") { consume(p, "IDENT") }
+        return ["Fn", "", params, parse_block(p)]
+    }
     advance(p)
-    return ["Unknown", ""]
+    return ["Unknown"]
 }

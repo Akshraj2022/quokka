@@ -6,7 +6,9 @@
 
 // However, for Functions, we need to represent them explicitly.
 fn val_fn(name, params, body, closure_env) {
-    return ["FnVal", name, params, body, closure_env]
+    let mut captured = closure_env
+    if name == "" { captured = env_clone(closure_env) }
+    return ["FnVal", name, params, body, captured]
 }
 
 fn val_builtin(name, arity) {

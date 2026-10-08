@@ -4,6 +4,21 @@ fn env_new(parent) {
     return [parent, []]
 }
 
+fn env_clone(env) {
+    if type_of(env) != "List" or len(env) != 2 { return env }
+    let parent_clone = env_clone(env[0])
+    let bindings = env[1]
+    let mut new_bindings = []
+    let mut i = 0
+    let l = len(bindings)
+    while i < l {
+        let b = bindings[i]
+        push(new_bindings, [b[0], b[1], b[2]])
+        i = i + 1
+    }
+    return [parent_clone, new_bindings]
+}
+
 fn env_define(env, name, value, is_mut) {
     let bindings = env[1]
     let mut i = 0

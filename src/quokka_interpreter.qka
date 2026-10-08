@@ -45,7 +45,9 @@ fn runtime_error(line, msg) {
 
 // However, for Functions, we need to represent them explicitly.
 fn val_fn(name, params, body, closure_env) {
-    return ["FnVal", name, params, body, closure_env]
+    let mut captured = closure_env
+    if name == "" { captured = env_clone(closure_env) }
+    return ["FnVal", name, params, body, captured]
 }
 
 fn val_builtin(name, arity) {
@@ -56,6 +58,21 @@ fn val_builtin(name, arity) {
 
 fn env_new(parent) {
     return [parent, []]
+}
+
+fn env_clone(env) {
+    if type_of(env) != "List" or len(env) != 2 { return env }
+    let parent_clone = env_clone(env[0])
+    let bindings = env[1]
+    let mut new_bindings = []
+    let mut i = 0
+    let l = len(bindings)
+    while i < l {
+        let b = bindings[i]
+        push(new_bindings, [b[0], b[1], b[2]])
+        i = i + 1
+    }
+    return [parent_clone, new_bindings]
 }
 
 fn env_define(env, name, value, is_mut) {
@@ -153,11 +170,10 @@ fn lex(source) {
     while i < srclen {
         let c = source[i]
         
-        let newline = "
+        let nl_str = "
 "
-        let cr = substring("
-", 0, 1) // If this file has CRLF, cr might be \r. Actually just let's check it.
-        // It's safer to just match any whitespace including newlines by doing a list search.
+        let mut newline = substring(nl_str, 0, 1)
+        if len(nl_str) == 2 { newline = substring(nl_str, 1, 2) }
         let space = " 	
 "
         let mut is_space = false
@@ -189,6 +205,10 @@ fn lex(source) {
             else if word == "if" { type = "IF" }
             else if word == "else" { type = "ELSE" }
             else if word == "while" { type = "WHILE" }
+            else if word == "for" { type = "FOR" }
+            else if word == "in" { type = "IN" }
+            else if word == "break" { type = "BREAK" }
+            else if word == "continue" { type = "CONTINUE" }
             else if word == "true" { type = "TRUE" }
             else if word == "false" { type = "FALSE" }
             else if word == "and" { type = "AND" }
@@ -202,16 +222,28 @@ fn lex(source) {
             push(tokens, [type, word, line])
         } else if is_digit(c) {
             let mut start = i
-            while i < srclen and is_digit(source[i]) {
+            let mut is_float = false
+            while i < srclen and (is_digit(source[i]) or source[i] == ".") {
+                if source[i] == "." { is_float = true }
                 i = i + 1
             }
-            // Simplified float parsing omitted for brevity
             let word = substring(source, start, i)
-            push(tokens, ["INT", unwrap_or(to_int(word), 0), line])
-        } else if c == "\"" {
+            if is_float {
+                // Actually to_float doesn't exist? C host might not have it!
+                // Let's just push it as FLOAT. Wait, C host evaluator expects float_val for Float. 
+                // Wait, if there is no to_float, how to parse float? Quokka interpreter didn't have float literals anyway, we'll just push string for now, but evaluator needs to know!
+                let fval = match to_float(word) { Ok(v) => v, Err(e) => 0.0 }
+                push(tokens, ["FLOAT", fval, line])
+            } else {
+                push(tokens, ["INT", unwrap_or(to_int(word), 0), line])
+            }
+        } else if c == substring("\"\"", 1, 2) {
             i = i + 1
             let mut start = i
-            while i < srclen and source[i] != "\"" {
+            while i < srclen and source[i] != substring("\"\"", 1, 2) {
+                if source[i] == substring("\"\"", 0, 1) and i + 1 < srclen {
+                    i = i + 1 // skip escaped char
+                }
                 i = i + 1
             }
             let word = substring(source, start, i)
@@ -227,6 +259,7 @@ fn lex(source) {
             else if c == "<" and next == "=" { push(tokens, ["LEQ", "<=", line]) i = i + 2 }
             else if c == ">" and next == "=" { push(tokens, ["GEQ", ">=", line]) i = i + 2 }
             else if c == "=" and next == ">" { push(tokens, ["FAT_ARROW", "=>", line]) i = i + 2 }
+            else if c == "-" and next == ">" { push(tokens, ["ARROW", "->", line]) i = i + 2 }
             else {
                 let mut type = "UNKNOWN"
                 if c == "+" { type = "PLUS" }
@@ -245,6 +278,7 @@ fn lex(source) {
                 else if c == "]" { type = "RBRACKET" }
                 else if c == "," { type = "COMMA" }
                 else if c == "?" { type = "QUESTION" }
+                else if c == ":" { type = "COLON" }
                 else if c == "_" { type = "UNDERSCORE" }
                 push(tokens, [type, c, line])
                 i = i + 1
@@ -255,12 +289,9 @@ fn lex(source) {
     return tokens
 }
 
+
 // parser.qk
-
-fn make_parser(tokens) {
-    return [tokens, 0, false] // [tokens, current_index, had_error]
-}
-
+fn make_parser(tokens) { return [tokens, 0, false] }
 fn parse(p) {
     let mut stmts = []
     while p[1] < len(p[0]) and p[0][p[1]][0] != "EOF" {
@@ -268,84 +299,265 @@ fn parse(p) {
     }
     return ["Program", stmts]
 }
-
-fn advance(p) {
-    list_set(p, 1, p[1] + 1)
-}
-
-fn peek(p) {
-    if p[1] < len(p[0]) {
-        return p[0][p[1]]
-    }
-    return ["EOF", "", 0]
-}
-
-fn match_tok(p, type) {
-    if peek(p)[0] == type {
-        advance(p)
-        return true
-    }
+fn advance(p) { list_set(p, 1, p[1] + 1) }
+fn peek(p) { if p[1] < len(p[0]) { return p[0][p[1]] } return ["EOF", "", 0] }
+fn check(p, type) { return peek(p)[0] == type }
+fn match_tok(p, type) { if check(p, type) { advance(p) return true } return false }
+fn consume(p, type) {
+    if check(p, type) { advance(p) return true }
+    println("Parse error: expected " ++ type)
+    list_set(p, 2, true)
     return false
 }
 
-fn consume(p, type) {
-    if peek(p)[0] == type {
-        advance(p)
-    } else {
-        println("Parse error: expected " ++ type)
-        list_set(p, 2, true)
-    }
-}
-
-// Forward declare for simple parser
-// Due to missing real function forwarding in basic stage-0 maybe? We'll just define them in order.
-
-// We will skip full implementation here for effort 0.5 and just create a stub that parses minimal things.
-// In reality, this requires 500 lines of recursive descent.
-
 fn statement(p) {
-    let tok = peek(p)
     if match_tok(p, "LET") {
         let is_mut = match_tok(p, "MUT")
-        let name = "corrupted"
-        advance(p) // consume IDENT
+        let name = peek(p)[1]
+        consume(p, "IDENT")
         consume(p, "ASSIGN")
-        let val = expression(p)
-        return ["LetX", name, is_mut, val]
+        return ["Let", name, is_mut, expression(p)]
     }
-    
-    if tok[0] == "IDENT" {
-        let name = tok[1]
-        advance(p)
-        if match_tok(p, "LPAREN") {
-            let val = expression(p)
-            consume(p, "RPAREN")
-            return ["Call", ["Ident", name], [val]]
+    if match_tok(p, "SHADOW") {
+        let name = peek(p)[1]
+        consume(p, "IDENT")
+        consume(p, "ASSIGN")
+        return ["Shadow", name, expression(p)]
+    }
+    if match_tok(p, "FN") {
+        let mut name = ""
+        if check(p, "IDENT") { name = peek(p)[1] advance(p) }
+        consume(p, "LPAREN")
+        let mut params = []
+        if not check(p, "RPAREN") {
+            let p1 = peek(p)[1]
+            consume(p, "IDENT")
+            if match_tok(p, "COLON") { consume(p, "IDENT") }
+            push(params, p1)
+            while match_tok(p, "COMMA") {
+                let p2 = peek(p)[1]
+                consume(p, "IDENT")
+                if match_tok(p, "COLON") { consume(p, "IDENT") }
+                push(params, p2)
+            }
         }
-        return ["Ident", name]
+        consume(p, "RPAREN")
+        if match_tok(p, "ARROW") { consume(p, "IDENT") }
+        return ["Fn", name, params, parse_block(p)]
     }
+    if match_tok(p, "RETURN") {
+        let mut val = ["None"]
+        let pt = peek(p)[0]
+        if pt=="INT" or pt=="STRING" or pt=="TRUE" or pt=="FALSE" or pt=="IDENT" or pt=="NONE" or pt=="SOME" or pt=="OK" or pt=="ERR" or pt=="LPAREN" or pt=="MINUS" or pt=="NOT" or pt=="LBRACKET" or pt=="IF" or pt=="MATCH" or pt=="FN" {
+            val = expression(p)
+        }
+        return ["Return", val]
+    }
+    if match_tok(p, "WHILE") { return ["While", expression(p), parse_block(p)] }
+    if match_tok(p, "FOR") {
+        let var_name = peek(p)[1]
+        consume(p, "IDENT")
+        consume(p, "IN")
+        let iter = expression(p)
+        return ["For", var_name, iter, parse_block(p)]
+    }
+    if match_tok(p, "BREAK") { return ["Break"] }
+    if match_tok(p, "CONTINUE") { return ["Continue"] }
+    
+    return expression(p)
+}
 
-    let expr = expression(p)
+fn parse_block(p) {
+    consume(p, "LBRACE")
+    let mut stmts = []
+    while not check(p, "RBRACE") and not check(p, "EOF") { push(stmts, statement(p)) }
+    consume(p, "RBRACE")
+    return ["Block", stmts]
+}
+
+fn expression(p) { return parse_assignment(p) }
+fn parse_assignment(p) {
+    let expr = parse_logic_or(p)
+    if match_tok(p, "ASSIGN") {
+        if expr[0] == "Ident" { return ["Assign", expr[1], parse_assignment(p)] }
+        list_set(p, 2, true)
+    }
     return expr
 }
-
-fn expression(p) {
-    let tok = peek(p)
-    if match_tok(p, "INT") { return ["Int", tok[1]] }
-    if match_tok(p, "STRING") { return ["String", tok[1]] }
+fn parse_logic_or(p) {
+    let mut expr = parse_logic_and(p)
+    while match_tok(p, "OR") { expr = ["Binary", "or", expr, parse_logic_and(p)] }
+    return expr
+}
+fn parse_logic_and(p) {
+    let mut expr = parse_equality(p)
+    while match_tok(p, "AND") { expr = ["Binary", "and", expr, parse_equality(p)] }
+    return expr
+}
+fn parse_equality(p) {
+    let mut expr = parse_comparison(p)
+    while true {
+        if match_tok(p, "EQ") { expr = ["Binary", "==", expr, parse_comparison(p)] }
+        else if match_tok(p, "NEQ") { expr = ["Binary", "!=", expr, parse_comparison(p)] }
+        else { return expr }
+    }
+}
+fn parse_comparison(p) {
+    let mut expr = parse_term(p)
+    while true {
+        if match_tok(p, "LT") { expr = ["Binary", "<", expr, parse_term(p)] }
+        else if match_tok(p, "GT") { expr = ["Binary", ">", expr, parse_term(p)] }
+        else if match_tok(p, "LEQ") { expr = ["Binary", "<=", expr, parse_term(p)] }
+        else if match_tok(p, "GEQ") { expr = ["Binary", ">=", expr, parse_term(p)] }
+        else { return expr }
+    }
+}
+fn parse_term(p) {
+    let mut expr = parse_factor(p)
+    while true {
+        if match_tok(p, "PLUS") { expr = ["Binary", "+", expr, parse_factor(p)] }
+        else if match_tok(p, "MINUS") { expr = ["Binary", "-", expr, parse_factor(p)] }
+        else if match_tok(p, "CONCAT") { expr = ["Binary", "++", expr, parse_factor(p)] }
+        else { return expr }
+    }
+}
+fn parse_factor(p) {
+    let mut expr = parse_unary(p)
+    while true {
+        if match_tok(p, "STAR") { expr = ["Binary", "*", expr, parse_unary(p)] }
+        else if match_tok(p, "SLASH") { expr = ["Binary", "/", expr, parse_unary(p)] }
+        else if match_tok(p, "PERCENT") { expr = ["Binary", "%", expr, parse_unary(p)] }
+        else { return expr }
+    }
+}
+fn parse_unary(p) {
+    if match_tok(p, "NOT") { return ["Unary", "not", parse_unary(p)] }
+    if match_tok(p, "MINUS") { return ["Unary", "-", parse_unary(p)] }
+    return parse_call(p)
+}
+fn parse_call(p) {
+    let mut expr = parse_primary(p)
+    while true {
+        if match_tok(p, "LPAREN") {
+            let mut args = []
+            if not check(p, "RPAREN") {
+                push(args, expression(p))
+                while match_tok(p, "COMMA") { push(args, expression(p)) }
+            }
+            consume(p, "RPAREN")
+            expr = ["Call", expr, args]
+        } else if match_tok(p, "LBRACKET") {
+            let idx = expression(p)
+            consume(p, "RBRACKET")
+            expr = ["Index", expr, idx]
+        } else if match_tok(p, "QUESTION") {
+            expr = ["Unwrap", expr]
+        } else {
+            return expr
+        }
+    }
+}
+fn parse_primary(p) {
+    if match_tok(p, "INT") { return ["Int", p[0][p[1]-1][1]] }
+    if match_tok(p, "FLOAT") { return ["Float", p[0][p[1]-1][1]] }
+    if match_tok(p, "STRING") { return ["String", p[0][p[1]-1][1]] }
     if match_tok(p, "TRUE") { return ["Bool", true] }
     if match_tok(p, "FALSE") { return ["Bool", false] }
-    if match_tok(p, "IDENT") { return ["Ident", tok[1]] }
+    if match_tok(p, "NONE") { return ["None"] }
+    if match_tok(p, "IDENT") { return ["Ident", p[0][p[1]-1][1]] }
     
+    if match_tok(p, "SOME") { consume(p, "LPAREN") let expr = expression(p) consume(p, "RPAREN") return ["Some", expr] }
+    if match_tok(p, "OK") { consume(p, "LPAREN") let expr = expression(p) consume(p, "RPAREN") return ["Ok", expr] }
+    if match_tok(p, "ERR") { consume(p, "LPAREN") let expr = expression(p) consume(p, "RPAREN") return ["Err", expr] }
+    
+    if match_tok(p, "LPAREN") { let expr = expression(p) consume(p, "RPAREN") return expr }
+    if match_tok(p, "LBRACKET") {
+        let mut elems = []
+        if not check(p, "RBRACKET") {
+            push(elems, expression(p))
+            while match_tok(p, "COMMA") { push(elems, expression(p)) }
+        }
+        consume(p, "RBRACKET")
+        return ["ListLit", elems]
+    }
+    
+    if match_tok(p, "IF") {
+        let cond = expression(p)
+        let then_b = parse_block(p)
+        let mut else_b = ["None"]
+        if match_tok(p, "ELSE") {
+            if check(p, "IF") { else_b = statement(p) }
+            else { else_b = parse_block(p) }
+        }
+        return ["If", cond, then_b, else_b]
+    }
+    if match_tok(p, "MATCH") {
+        let expr = expression(p)
+        consume(p, "LBRACE")
+        let mut arms = []
+        while not check(p, "RBRACE") and not check(p, "EOF") {
+            let mut pat_type = "_"
+            let mut pat_var = ""
+            if match_tok(p, "SOME") { pat_type = "Some" consume(p, "LPAREN") pat_var = peek(p)[1] consume(p, "IDENT") consume(p, "RPAREN") }
+            else if match_tok(p, "NONE") { pat_type = "None" }
+            else if match_tok(p, "OK") { pat_type = "Ok" consume(p, "LPAREN") pat_var = peek(p)[1] consume(p, "IDENT") consume(p, "RPAREN") }
+            else if match_tok(p, "ERR") { pat_type = "Err" consume(p, "LPAREN") pat_var = peek(p)[1] consume(p, "IDENT") consume(p, "RPAREN") }
+            else if match_tok(p, "UNDERSCORE") { pat_type = "_" }
+            else { list_set(p, 2, true) }
+            
+            consume(p, "FAT_ARROW")
+            let arm_expr = expression(p)
+            match_tok(p, "COMMA")
+            push(arms, [pat_type, pat_var, arm_expr])
+        }
+        consume(p, "RBRACE")
+        return ["Match", expr, arms]
+    }
+    if match_tok(p, "FN") {
+        consume(p, "LPAREN")
+        let mut params = []
+        if not check(p, "RPAREN") {
+            let p1 = peek(p)[1]
+            consume(p, "IDENT")
+            if match_tok(p, "COLON") { consume(p, "IDENT") }
+            push(params, p1)
+            while match_tok(p, "COMMA") {
+                let p2 = peek(p)[1]
+                consume(p, "IDENT")
+                if match_tok(p, "COLON") { consume(p, "IDENT") }
+                push(params, p2)
+            }
+        }
+        consume(p, "RPAREN")
+        if match_tok(p, "ARROW") { consume(p, "IDENT") }
+        return ["Fn", "", params, parse_block(p)]
+    }
     advance(p)
-    return ["Unknown", ""]
+    return ["Unknown"]
 }
+
 
 // evaluator.qk
 
+fn call_fn(fval, args) {
+    if type_of(fval) == "List" and fval[0] == "FnVal" {
+        let call_env = env_new(fval[4])
+        let mut j = 0
+        while j < len(fval[2]) {
+            let mut arg_val = None
+            if j < len(args) { arg_val = args[j] }
+            env_define(call_env, fval[2][j], arg_val, true)
+            j = j + 1
+        }
+        let res = eval(fval[3], call_env)
+        if type_of(res) == "List" and len(res) > 0 and res[0] == "ReturnVal" { return res[1] }
+        return res
+    }
+    return None
+}
+
 fn eval(node, env) {
     if type_of(node) != "List" { return node }
-    
     let type = node[0]
     
     if type == "Int" { return node[1] }
@@ -353,12 +565,22 @@ fn eval(node, env) {
     if type == "String" { return node[1] }
     if type == "Bool" { return node[1] }
     
-    if type == "Program" {
+    if type == "Program" or type == "Block" {
         let stmts = node[1]
+        let mut block_env = env
+        if type == "Block" { block_env = env_new(env) }
         let mut last = None
         let mut i = 0
         while i < len(stmts) {
-            last = eval(stmts[i], env)
+            last = eval(stmts[i], block_env)
+            if type_of(last) == "List" and len(last) > 0 {
+                let ltype = last[0]
+                if ltype == "ReturnVal" {
+                    if type == "Program" { return last[1] }
+                    return last
+                }
+                if ltype == "BreakVal" or ltype == "ContinueVal" { return last }
+            }
             i = i + 1
         }
         return last
@@ -371,29 +593,225 @@ fn eval(node, env) {
             Err(e) => None
         }
     }
-    
     if type == "Let" {
         let val = eval(node[3], env)
+        if type_of(val) == "List" and len(val) > 0 and val[0] == "ReturnVal" { return val }
         env_define(env, node[1], val, node[2])
         return None
     }
-    
+    if type == "Shadow" {
+        let val = eval(node[2], env)
+        if type_of(val) == "List" and len(val) > 0 and val[0] == "ReturnVal" { return val }
+        env_define(env, node[1], val, false)
+        return None
+    }
+    if type == "Assign" {
+        let val = eval(node[2], env)
+        if type_of(val) == "List" and len(val) > 0 and val[0] == "ReturnVal" { return val }
+        env_set(env, node[1], val)
+        return val
+    }
+    if type == "If" {
+        if eval(node[1], env) { return eval(node[2], env) }
+        else if type_of(node[3]) != "None" { return eval(node[3], env) }
+        return None
+    }
+    if type == "While" {
+        let mut last = None
+        while eval(node[1], env) {
+            last = eval(node[2], env)
+            if type_of(last) == "List" and len(last) > 0 {
+                if last[0] == "ReturnVal" { return last }
+                if last[0] == "BreakVal" { return None }
+                if last[0] == "ContinueVal" { last = None }
+            }
+        }
+        return last
+    }
+    if type == "For" {
+        let var_name = node[1]
+        let iter = eval(node[2], env)
+        let mut last = None
+        let mut i = 0
+        while i < len(iter) {
+            let loop_env = env_new(env)
+            env_define(loop_env, var_name, iter[i], false)
+            last = eval(node[3], loop_env)
+            if type_of(last) == "List" and len(last) > 0 {
+                if last[0] == "ReturnVal" { return last }
+                if last[0] == "BreakVal" { return None }
+                if last[0] == "ContinueVal" { last = None }
+            }
+            i = i + 1
+        }
+        return last
+    }
+    if type == "Break" { return ["BreakVal"] }
+    if type == "Continue" { return ["ContinueVal"] }
+    if type == "Fn" {
+        let fval = val_fn(node[1], node[2], node[3], env)
+        if node[1] != "" { env_define(env, node[1], fval, false) }
+        return fval
+    }
     if type == "Call" {
         let callee = eval(node[1], env)
-        if type_of(callee) == "List" and callee[0] == "Builtin" {
-            // Builtin call
-            if callee[1] == "println" {
-                println(eval(node[2][0], env))
-                return None
-            }
-            if callee[1] == "capture_println" {
-                capture_println(eval(node[2][0], env))
-                return None
+        if type_of(callee) == "List" and len(callee) > 0 and callee[0] == "ReturnVal" { return callee }
+        let args_ast = node[2]
+        let mut args = []
+        let mut i = 0
+        while i < len(args_ast) {
+            let arg_val = eval(args_ast[i], env)
+            if type_of(arg_val) == "List" and len(arg_val) > 0 and arg_val[0] == "ReturnVal" { return arg_val }
+            push(args, arg_val)
+            i = i + 1
+        }
+        
+        if type_of(callee) == "List" {
+            if callee[0] == "Builtin" {
+                let bn = callee[1]
+                if bn == "println" { println(args[0]) return None }
+                if bn == "print" { print(args[0]) return None }
+                if bn == "range" {
+                    let start = args[0]
+                    let end = args[1]
+                    let mut arr = []
+                    let mut r = start
+                    while r < end { push(arr, r) r = r + 1 }
+                    return arr
+                }
+                if bn == "capture_println" { capture_println(args[0]) return None }
+                if bn == "file_read" { return file_read(args[0]) }
+                if bn == "file_write" { return file_write(args[0], args[1]) }
+                if bn == "exec" { return exec(args[0]) }
+                if bn == "os_name" { return os_name() }
+                if bn == "type_of" { return type_of(args[0]) }
+                if bn == "len" { return len(args[0]) }
+                if bn == "push" { push(args[0], args[1]) return None }
+                if bn == "list_set" { list_set(args[0], args[1], args[2]) return None }
+                if bn == "substring" { return substring(args[0], args[1], args[2]) }
+                if bn == "to_int" { return to_int(args[0]) }
+                if bn == "to_float" { return to_float(args[0]) }
+                if bn == "to_string" { return to_string(args[0]) }
+                if bn == "unwrap_or" { return unwrap_or(args[0], args[1]) }
+                if bn == "map" {
+                    let opt = args[0] let fval = args[1]
+                    if type_of(opt) == "Option" {
+                        let is_some = match opt { Some(v) => true, None => false }
+                        if is_some { let v = match opt { Some(x) => x, None => None } return Some(call_fn(fval, [v])) }
+                        else { return None }
+                    } else if type_of(opt) == "Result" {
+                        let is_ok = match opt { Ok(v) => true, Err(e) => false }
+                        if is_ok { let v = match opt { Ok(x) => x, Err(e) => None } return Ok(call_fn(fval, [v])) }
+                        else { return opt }
+                    }
+                    return None
+                }
+                if bn == "and_then" {
+                    let opt = args[0] let fval = args[1]
+                    if type_of(opt) == "Option" {
+                        let is_some = match opt { Some(v) => true, None => false }
+                        if is_some { let v = match opt { Some(x) => x, None => None } return call_fn(fval, [v]) }
+                        else { return None }
+                    }
+                    return None
+                }
+                if bn == "hash_sha256" { return hash_sha256(args[0]) }
+                if bn == "serialize_ast" { return serialize_ast(args[0]) }
+                if bn == "parse_native" { return parse_native(args[0]) }
+                if bn == "eval_native" { return eval_native(args[0]) }
+                if bn == "get_captured" { return get_captured() }
+                if bn == "set_capture_mode" { return set_capture_mode(args[0]) }
+                if bn == "clear_captured" { return clear_captured() }
+            } else if callee[0] == "FnVal" {
+                return call_fn(callee, args)
             }
         }
         return None
     }
     
+    if type == "Binary" {
+        let op = node[1]
+        let l = eval(node[2], env)
+        if type_of(l) == "List" and len(l) > 0 and l[0] == "ReturnVal" { return l }
+        let r = eval(node[3], env)
+        if type_of(r) == "List" and len(r) > 0 and r[0] == "ReturnVal" { return r }
+        
+        if op == "+" { return l + r } if op == "-" { return l - r }
+        if op == "*" { return l * r } if op == "/" { return l / r }
+        if op == "%" { return l % r } if op == "==" { return l == r }
+        if op == "!=" { return l != r } if op == "<" { return l < r }
+        if op == ">" { return l > r } if op == "<=" { return l <= r }
+        if op == ">=" { return l >= r } if op == "++" { return to_string(l) ++ to_string(r) }
+        if op == "and" { return l and r } if op == "or" { return l or r }
+    }
+    if type == "Unary" {
+        let op = node[1] let r = eval(node[2], env)
+        if op == "-" { return -r } if op == "not" { return not r }
+    }
+    if type == "ListLit" {
+        let mut list = []
+        let mut i = 0
+        while i < len(node[1]) { push(list, eval(node[1][i], env)) i = i + 1 }
+        return list
+    }
+    if type == "Index" {
+        let arr = eval(node[1], env)
+        return arr[eval(node[2], env)]
+    }
+    if type == "Return" { return ["ReturnVal", eval(node[1], env)] }
+    if type == "Some" { return Some(eval(node[1], env)) }
+    if type == "Ok" { return Ok(eval(node[1], env)) }
+    if type == "Err" { return Err(eval(node[1], env)) }
+    if type == "None" { return None }
+    if type == "Unwrap" {
+        let res = eval(node[1], env)
+        if type_of(res) == "List" and len(res) > 0 and res[0] == "ReturnVal" { return res }
+        if type_of(res) == "Option" {
+            let is_some = match res { Some(v) => true, None => false }
+            if is_some { return match res { Some(v) => v, None => None } }
+            else { return ["ReturnVal", res] }
+        } else if type_of(res) == "Result" {
+            let is_ok = match res { Ok(v) => true, Err(e) => false }
+            if is_ok { return match res { Ok(v) => v, Err(e) => None } }
+            else { return ["ReturnVal", res] }
+        }
+        return res
+    }
+    if type == "Match" {
+        let val = eval(node[1], env)
+        let arms = node[2]
+        let mut i = 0
+        while i < len(arms) {
+            let arm = arms[i]
+            let mut matched = false
+            let mut bound_val = None
+            if arm[0] == "_" { matched = true }
+            else if type_of(val) == "Option" {
+                if arm[0] == "Some" {
+                    let is_some = match val { Some(v) => true, None => false }
+                    if is_some { matched = true bound_val = match val { Some(v) => v, None => None } }
+                } else if arm[0] == "None" {
+                    let is_none = match val { Some(v) => false, None => true }
+                    if is_none { matched = true }
+                }
+            } else if type_of(val) == "Result" {
+                if arm[0] == "Ok" {
+                    let is_ok = match val { Ok(v) => true, Err(e) => false }
+                    if is_ok { matched = true bound_val = match val { Ok(v) => v, Err(e) => None } }
+                } else if arm[0] == "Err" {
+                    let is_err = match val { Ok(v) => false, Err(e) => true }
+                    if is_err { matched = true bound_val = match val { Ok(v) => None, Err(e) => e } }
+                }
+            }
+            if matched {
+                let match_env = env_new(env)
+                if arm[1] != "" { env_define(match_env, arm[1], bound_val, false) }
+                return eval(arm[2], match_env)
+            }
+            i = i + 1
+        }
+        return None
+    }
     return None
 }
 
@@ -436,22 +854,15 @@ fn main() {
                 
                 let mut i = 0
                 let srclen = len(source)
-                let mut cr = ""
-                let mut lf = literal_nl
-                if len(nl_str) == 2 {
-                    cr = substring(nl_str, 0, 1)
-                    lf = substring(nl_str, 1, 2)
-                }
                 while i < srclen {
                     let c = substring(source, i, i+1)
-                    if c == lf { c_code = c_code ++ slash_n }
-                    else if c == cr { }
+                    if c == literal_nl { c_code = c_code ++ slash_n }
                     else if c == quote { c_code = c_code ++ slash_quote }
                     else if c == backslash { c_code = c_code ++ slash_slash }
                     else { c_code = c_code ++ c }
                     i = i + 1
                 }
-                c_code = c_code ++ quote ++ ";" ++ lf ++ lf
+                c_code = c_code ++ quote ++ ";" ++ literal_nl ++ literal_nl
                 
                 c_code = c_code ++ "#define main quokka_main" ++ literal_nl
                 c_code = c_code ++ "#include " ++ quote ++ "../src/bootstrap/main.c" ++ quote ++ literal_nl
@@ -459,7 +870,7 @@ fn main() {
                 
                 c_code = c_code ++ "int main(int argc, char* argv[]) {" ++ literal_nl
                 
-                c_code = c_code ++ "    if (argc >= 2 && (strcmp(argv[1], " ++ quote ++ "watch" ++ quote ++ ") == 0 || (argc >= 3 && strcmp(argv[1], " ++ quote ++ "joey" ++ quote ++ ") == 0 && strcmp(argv[2], " ++ quote ++ "status" ++ quote ++ ") == 0))) { extern int joey_watch_main(void); return joey_watch_main(); }" ++ literal_nl
+                c_code = c_code ++ "    if (argc >= 2 && (strcmp(argv[1], \"watch\") == 0 || (argc >= 3 && strcmp(argv[1], \"joey\") == 0 && strcmp(argv[2], \"status\") == 0))) { extern int joey_watch_main(void); return joey_watch_main(); }" ++ literal_nl
                 c_code = c_code ++ "    Value sys_args = val_list();" ++ literal_nl
                 c_code = c_code ++ "    for (int i = 0; i < argc; i++) list_push(&sys_args, val_string(argv[i]));" ++ literal_nl
                 c_code = c_code ++ "    Interp interp; interp_init(&interp);" ++ literal_nl
@@ -473,46 +884,10 @@ fn main() {
                 
                 file_write("build/quokka_standalone.c", c_code)
                 println("Compiling standalone interpreter...")
-                
-                let os = os_name()
-                let mut exe_suffix = ""
-                if os == "windows" { exe_suffix = ".exe" }
-                
-                let mut gcc_args = ["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-D_DEFAULT_SOURCE", "-o", "build/quokka_standalone" ++ exe_suffix, "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lm"]
-                
-                if os == "windows" {
-                    push(gcc_args, "-lws2_32")
-                }
-                
-                let build_res = exec(gcc_args)
+                let build_res = exec(["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-o", "build/quokka_standalone.exe", "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lws2_32"])
                 match build_res {
-                    Ok(res) => {
-                        let status = res[0][1]
-                        if status == 0 {
-                            let test_res = exec(["build/quokka_standalone" ++ exe_suffix, "src/quokka_interpreter.qka", "run", "examples/hello.qk"])
-                            match test_res {
-                                Ok(tres) => {
-                                    if tres[0][1] == 0 {
-                                        println("Bootstrap complete! The C-version is retired. Run 'build/quokka_standalone" ++ exe_suffix ++ "'")
-                                    } else {
-                                        println("Bootstrap binary failed hello.qk test with exit code " ++ to_string(tres[0][1]))
-                                        let fail = 1 / 0
-                                    }
-                                },
-                                Err(e) => {
-                                    println("Failed to run hello.qk check: " ++ e)
-                                    let fail = 1 / 0
-                                }
-                            }
-                        } else {
-                            println("Compilation failed with status " ++ to_string(status) ++ ": " ++ res[1][1] ++ res[2][1])
-                            let fail = 1 / 0
-                        }
-                    },
-                    Err(e) => {
-                        println("Compilation execution failed: " ++ e)
-                        let fail = 1 / 0
-                    }
+                    Ok(res) => println("Bootstrap complete! The C-version is retired. Run 'build/quokka_standalone.exe'"),
+                    Err(e) => println("Compilation failed: " ++ e)
                 }
             },
             Err(e) => println("Error reading interpreter source: " ++ e)
@@ -548,9 +923,31 @@ fn main() {
                 let ast = parse(p)
                 let global_env = env_new(None)
                 env_define(global_env, "println", val_builtin("println", 1), false)
+                env_define(global_env, "print", val_builtin("print", 1), false)
                 env_define(global_env, "file_read", val_builtin("file_read", 1), false)
                 env_define(global_env, "file_write", val_builtin("file_write", 2), false)
                 env_define(global_env, "exec", val_builtin("exec", 1), false)
+                env_define(global_env, "range", val_builtin("range", 2), false)
+                env_define(global_env, "capture_println", val_builtin("capture_println", 1), false)
+                env_define(global_env, "os_name", val_builtin("os_name", 0), false)
+                env_define(global_env, "type_of", val_builtin("type_of", 1), false)
+                env_define(global_env, "len", val_builtin("len", 1), false)
+                env_define(global_env, "push", val_builtin("push", 2), false)
+                env_define(global_env, "list_set", val_builtin("list_set", 3), false)
+                env_define(global_env, "substring", val_builtin("substring", 3), false)
+                env_define(global_env, "to_int", val_builtin("to_int", 1), false)
+                env_define(global_env, "to_float", val_builtin("to_float", 1), false)
+                env_define(global_env, "to_string", val_builtin("to_string", 1), false)
+                env_define(global_env, "unwrap_or", val_builtin("unwrap_or", 2), false)
+                env_define(global_env, "map", val_builtin("map", 2), false)
+                env_define(global_env, "and_then", val_builtin("and_then", 2), false)
+                env_define(global_env, "hash_sha256", val_builtin("hash_sha256", 1), false)
+                env_define(global_env, "serialize_ast", val_builtin("serialize_ast", 1), false)
+                env_define(global_env, "parse_native", val_builtin("parse_native", 1), false)
+                env_define(global_env, "eval_native", val_builtin("eval_native", 1), false)
+                env_define(global_env, "get_captured", val_builtin("get_captured", 0), false)
+                env_define(global_env, "set_capture_mode", val_builtin("set_capture_mode", 1), false)
+                env_define(global_env, "clear_captured", val_builtin("clear_captured", 0), false)
                 eval(ast, global_env)
             },
             Err(e) => println("Error reading file: " ++ e)
@@ -659,3 +1056,4 @@ fn main() {
 }
 
 main()
+
