@@ -22,10 +22,10 @@ HOVER_BROWN = "#A8846A"    # Lighter Brown
 CONSOLE_BG = "#3E2C20"     # Very Dark Brown
 CONSOLE_TEXT = "#F3EBE1"   # Light Cream
 
-class Guichenotia(ctk.CTk):
+class GUICHENOTIA(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Guichenotia - Quokka IDLE")
+        self.title("GUICHENOTIA")
         self.geometry("900x700")
         self.configure(fg_color=BG_COLOR)
         
@@ -86,7 +86,7 @@ class Guichenotia(ctk.CTk):
         self.editor.delete("1.0", tk.END)
         self.editor.insert(tk.END, content)
         self.current_file = filepath
-        self.title(f"Guichenotia - {os.path.basename(filepath)}")
+        self.title(f"GUICHENOTIA - {os.path.basename(filepath)}")
 
     def save_file(self):
         if not self.current_file:
@@ -96,7 +96,7 @@ class Guichenotia(ctk.CTk):
             self.current_file = filepath
         with open(self.current_file, "w", encoding="utf-8") as f:
             f.write(self.editor.get("1.0", tk.END))
-        self.title(f"Guichenotia - {os.path.basename(self.current_file)}")
+        self.title(f"GUICHENOTIA - {os.path.basename(self.current_file)}")
         
     def write_console(self, text):
         self.console.insert(tk.END, text)
@@ -108,7 +108,7 @@ class Guichenotia(ctk.CTk):
             return
         
         # Save temp file
-        temp_file = "guichenotia_temp.qk"
+        temp_file = "GUICHENOTIA_temp.qk"
         with open(temp_file, "w", encoding="utf-8") as f:
             f.write(content)
             
@@ -140,5 +140,5 @@ class Guichenotia(ctk.CTk):
         threading.Thread(target=execute, daemon=True).start()
 
 if __name__ == "__main__":
-    app = Guichenotia()
+    app = GUICHENOTIA()
     app.mainloop()

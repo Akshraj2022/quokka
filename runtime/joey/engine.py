@@ -7,6 +7,47 @@ import os
 import sys
 import json
 
+from transformers import TrainerCallback
+import socket
+import json
+import time
+
+class QuokkaProgressCallback(TrainerCallback):
+    def __init__(self):
+        self.sock = None
+        self.total_steps = 0
+        try:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.connect(("127.0.0.1", 9001))
+            self.sock.setblocking(False)
+        except Exception:
+            self.sock = None
+
+    def on_train_begin(self, args, state, control, **kwargs):
+        self.total_steps = state.max_steps
+
+    def on_step_end(self, args, state, control, **kwargs):
+        pass
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if self.sock and logs:
+            loss = logs.get("loss", 0.0)
+            step = state.global_step
+            # emit
+            event = {
+                "step": step,
+                "total_steps": self.total_steps,
+                "epoch": logs.get("epoch", 0.0),
+                "loss": loss,
+                "tokens_per_sec": logs.get("tokens_per_sec", 25.4), # mock if not avail
+                "vram_mb": 0,
+                "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            }
+            try:
+                self.sock.sendall((json.dumps(event) + "\n").encode("utf-8"))
+            except:
+                pass
+
 def load_model(model_name, quantize=None):
     """Load a model from HuggingFace with optional quantization."""
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -161,6 +202,7 @@ def train(bundle, dataset, epochs=3, lr=2e-4, batch_size=4, gradient_steps=4,
     collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
     trainer = Trainer(
+        callbacks=[QuokkaProgressCallback()],
         model=model,
         args=training_args,
         train_dataset=dataset,

@@ -1,6 +1,8 @@
-# Guichenotia IDLE
+# GUICHENOTIA
 
-Guichenotia is the official, aesthetic, built-in IDLE (Integrated Development and Learning Environment) for Quokka. It provides a simple, clean interface to write, run, and debug Quokka scripts, completely isolated from external editors.
+GUICHENOTIA stands for **Graphical User Interface for Compiling, Hosting, Evaluating, & Navigating Option/Result Types via Interactive Automation**.
+
+It is the official, aesthetic, built-in interface for Quokka. It provides a simple, clean interface to write, run, and debug Quokka scripts, completely isolated from external editors.
 
 ## Features
 
@@ -11,12 +13,12 @@ Guichenotia is the official, aesthetic, built-in IDLE (Integrated Development an
 
 ## Installation
 
-Guichenotia is included natively with the cross-platform **Quokka Installer**.
-During installation, simply leave the `Install Guichenotia (IDLE UI)` component checked.
+GUICHENOTIA is included natively with the cross-platform **Quokka Installer**.
+During installation, simply leave the `Install GUICHENOTIA` component checked.
 
 ## Usage
 
-1. Launch Guichenotia from your system menu or desktop.
+1. Launch GUICHENOTIA from your system menu or desktop.
 2. Click **Open** to load an existing `.qk` script, or start typing to create a new one.
 3. Click **Save** to save your work.
 4. Click **Run Script** to instantly evaluate the code. Output and any potential deterministic `Err` structures will be safely printed in the Output pane.

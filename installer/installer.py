@@ -95,8 +95,8 @@ class InstallerApp(ctk.CTk):
             "• CLI Usage:\n"
             "   Run a script: quokka run <file>\n"
             "   Verify self-hosting: quokka check-self\n\n"
-            "• Guichenotia (IDLE):\n"
-            "   We have a beautiful new UI for Quokka called Guichenotia.\n"
+            "• GUICHENOTIA:\n"
+            "   We have a beautiful new UI for Quokka called GUICHENOTIA (Graphical User Interface for Compiling, Hosting, Evaluating, & Navigating Option/Result Types via Interactive Automation).\n"
             "   You can write and run scripts directly in it.\n\n"
             "• Joey (ML Extension):\n"
             "   Quokka isolates ML workloads to Joey to ensure memory safety.\n"
@@ -141,11 +141,11 @@ class InstallerApp(ctk.CTk):
         comp_frame.pack(fill="x", padx=50, pady=10, ipady=5, ipadx=10)
         
         self.var_path = ctk.BooleanVar(value=True)
-        self.var_idle = ctk.BooleanVar(value=True)
+        self.var_guichenotia = ctk.BooleanVar(value=True)
         self.var_joey = ctk.BooleanVar(value=True)
         
         for txt, var in [("Add Quokka to PATH", self.var_path), 
-                         ("Install Guichenotia (IDLE UI)", self.var_idle), 
+                         ("Install GUICHENOTIA", self.var_guichenotia), 
                          ("Install Joey ML Extension", self.var_joey)]:
             ctk.CTkCheckBox(comp_frame, text=txt, variable=var, fg_color=BTN_BG, hover_color=BTN_HOVER, checkmark_color="#FFF", text_color=TEXT_MAIN, font=("Segoe UI", 13)).pack(anchor="w", pady=6, padx=10)
         
@@ -215,10 +215,10 @@ class InstallerApp(ctk.CTk):
                 with zipfile.ZipFile(payload, "r") as z:
                     z.extractall(target_dir)
                     
-            if self.var_idle.get():
-                self.update_progress("Installing Guichenotia IDLE...", 0.3)
+            if self.var_guichenotia.get():
+                self.update_progress("Installing GUICHENOTIA...", 0.3)
                 time.sleep(0.5)
-                # In a real installer this would copy guichenotia.py or binary
+                # In a real installer this would copy GUICHENOTIA.py or binary
                 
             if self.var_joey.get():
                 self.update_progress("Configuring Joey ML extension...", 0.5)
