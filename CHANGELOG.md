@@ -8,7 +8,7 @@
 - Updated documentation and README with correct claims and self-hosting verification logs.
 - Fixed bootstrap command for cross-platform compatibility (Windows, macOS, Linux).
 
-## [v0.3.0]
+## [v0.5.0]
 ### Added
 - quokka watch (alias quokka joey status): A cross-platform TUI monitor for live visualization of Joey (LoRA fine-tuning) jobs.
 - Structured progress event emission over TCP (port 9001) from both Python and native Joey backends.
