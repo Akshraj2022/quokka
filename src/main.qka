@@ -79,10 +79,13 @@ fn main() {
                 let mut exe_suffix = ""
                 if os == "windows" { exe_suffix = ".exe" }
                 
-                let mut gcc_args = ["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-D_DEFAULT_SOURCE", "-Wl,--stack,16777216", "-o", "build/quokka_standalone" ++ exe_suffix, "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lm"]
+                let mut gcc_args = ["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-D_DEFAULT_SOURCE", "-Wl,--stack,16777216", "-o", "build/quokka_standalone" ++ exe_suffix, "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "src/joey/joey_gui.c", "-lm"]
                 
                 if os == "windows" {
                     push(gcc_args, "-lws2_32")
+                    push(gcc_args, "-luser32")
+                    push(gcc_args, "-lgdi32")
+                    push(gcc_args, "-lcomdlg32")
                 }
                 
                 let build_res = exec(gcc_args)

@@ -20,6 +20,7 @@ Quokka is a modern, expression-oriented programming language designed with an un
 * **Deterministic & Safe**: Exceptions do not exist. Errors are handled safely via Monadic `Option` and `Result` types (`Ok` / `Err`), paired with powerful `match` expressions and the `?` postfix operator.
 * **Immutable by Default**: Variables (`let`) are immutable. Mutation (`let mut`) and explicit shadowing (`shadow`) must be opted into.
 * **The Joey ML Extension**: Quokka includes `joey.qka`, a modular extension that orchestrates complex Python/PyTorch/Unsloth workflows (like Llama-3 QLoRA fine-tuning) via a secure JSON IPC boundary. Python is never embedded in the Quokka core.
+* **GUICHENOTIA**: Includes a native C-based GUI directly shipped inside Quokka for distraction-free programming and execution without any Python dependencies. Run it with `quokka run GUICHENOTIA.qka`.
 * **Native Windows Support**: Install via the automated installer (`EXE/Quokka-Setup.exe`) or via a standalone zip archive.
 
 ## 🚀 Getting Started

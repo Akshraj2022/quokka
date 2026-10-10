@@ -942,6 +942,8 @@ void interp_register_builtins(Interp *interp) {
     env_define(interp->globals, "substring",  val_builtin(builtin_substring), false);
     env_define(interp->globals, "file_read",  val_builtin(builtin_file_read), false);
     env_define(interp->globals, "file_write", val_builtin(builtin_file_write),false);
+extern Value builtin_joey_start_gui(Value *args, int argc, int line);
+    env_define(interp->globals, "joey_start_gui", val_builtin(builtin_joey_start_gui), false);
     env_define(interp->globals, "joey_run_native", val_builtin(builtin_joey_run_native), false);
     env_define(interp->globals, "exec",       val_builtin(builtin_exec),      false);
     

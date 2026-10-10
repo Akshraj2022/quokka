@@ -684,6 +684,7 @@ fn eval(node, env) {
                 if bn == "file_read" { return file_read(args[0]) }
                 if bn == "file_write" { return file_write(args[0], args[1]) }
                 if bn == "exec" { return exec(args[0]) }
+                if bn == "joey_start_gui" { return joey_start_gui() }
                 if bn == "os_name" { return os_name() }
                 if bn == "type_of" { return type_of(args[0]) }
                 if bn == "len" { return len(args[0]) }
@@ -897,10 +898,13 @@ fn main() {
                 let mut exe_suffix = ""
                 if os == "windows" { exe_suffix = ".exe" }
                 
-                let mut gcc_args = ["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-D_DEFAULT_SOURCE", "-Wl,--stack,16777216", "-o", "build/quokka_standalone" ++ exe_suffix, "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lm"]
+                let mut gcc_args = ["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-D_DEFAULT_SOURCE", "-Wl,--stack,16777216", "-o", "build/quokka_standalone" ++ exe_suffix, "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "src/joey/joey_gui.c", "-lm"]
                 
                 if os == "windows" {
                     push(gcc_args, "-lws2_32")
+                    push(gcc_args, "-luser32")
+                    push(gcc_args, "-lgdi32")
+                    push(gcc_args, "-lcomdlg32")
                 }
                 
                 let build_res = exec(gcc_args)
@@ -908,8 +912,14 @@ fn main() {
                     Ok(res) => {
                         let status = res[0][1]
                         if status == 0 {
-                            let test_res = exec(["build/quokka_standalone" ++ exe_suffix, "src/quokka_interpreter.qka", "run", "examples/hello.qk"])
-                            let host_res = exec(["build/qk_bootstrap" ++ exe_suffix, "src/quokka_interpreter.qka", "run", "examples/hello.qk"])
+                            let mut tprog = "build/quokka_standalone"
+                            let mut hprog = "build/qk_bootstrap"
+                            if os == "windows" {
+                                tprog = "build\\quokka_standalone"
+                                hprog = "build\\qk_bootstrap"
+                            }
+                            let test_res = exec([tprog ++ exe_suffix, "run", "examples/hello.qk"])
+                            let host_res = exec([hprog ++ exe_suffix, "src/quokka_interpreter.qka", "run", "examples/hello.qk"])
                             match test_res {
                                 Ok(tres) => {
                                     match host_res {
@@ -985,6 +995,7 @@ fn main() {
                 env_define(global_env, "file_read", val_builtin("file_read", 1), false)
                 env_define(global_env, "file_write", val_builtin("file_write", 2), false)
                 env_define(global_env, "exec", val_builtin("exec", 1), false)
+                env_define(global_env, "joey_start_gui", val_builtin("joey_start_gui", 0), false)
                 env_define(global_env, "range", val_builtin("range", 2), false)
                 env_define(global_env, "capture_println", val_builtin("capture_println", 1), false)
                 env_define(global_env, "os_name", val_builtin("os_name", 0), false)
