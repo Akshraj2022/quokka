@@ -897,7 +897,7 @@ fn main() {
                 let mut exe_suffix = ""
                 if os == "windows" { exe_suffix = ".exe" }
                 
-                let mut gcc_args = ["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-D_DEFAULT_SOURCE", "-o", "build/quokka_standalone" ++ exe_suffix, "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lm"]
+                let mut gcc_args = ["gcc", "-std=c11", "-Wall", "-Wextra", "-Wno-unused-parameter", "-D_DEFAULT_SOURCE", "-Wl,--stack,16777216", "-o", "build/quokka_standalone" ++ exe_suffix, "build/quokka_standalone.c", "src/bootstrap/lexer.c", "src/bootstrap/parser.c", "src/bootstrap/interpreter.c", "src/bootstrap/sha256.c", "src/joey/joey_native.c", "src/joey/joey_watch.c", "-lm"]
                 
                 if os == "windows" {
                     push(gcc_args, "-lws2_32")
@@ -909,13 +909,25 @@ fn main() {
                         let status = res[0][1]
                         if status == 0 {
                             let test_res = exec(["build/quokka_standalone" ++ exe_suffix, "src/quokka_interpreter.qka", "run", "examples/hello.qk"])
+                            let host_res = exec(["build/qk_bootstrap" ++ exe_suffix, "src/quokka_interpreter.qka", "run", "examples/hello.qk"])
                             match test_res {
                                 Ok(tres) => {
-                                    if tres[0][1] == 0 {
-                                        println("Bootstrap complete! The C-version is retired. Run 'build/quokka_standalone" ++ exe_suffix ++ "'")
-                                    } else {
-                                        println("Bootstrap binary failed hello.qk test with exit code " ++ to_string(tres[0][1]))
-                                        let fail = 1 / 0
+                                    match host_res {
+                                        Ok(hres) => {
+                                            if tres[0][1] == 0 and tres[1][1] == hres[1][1] {
+                                                println("Bootstrap complete! The C-version is retired. Run 'build/quokka_standalone" ++ exe_suffix ++ "'")
+                                            } else {
+                                                println("Bootstrap binary failed hello.qk test!")
+                                                println("Expected output: " ++ hres[1][1])
+                                                println("Actual output: " ++ tres[1][1])
+                                                println("Exit code: " ++ to_string(tres[0][1]))
+                                                let fail = 1 / 0
+                                            }
+                                        },
+                                        Err(e) => {
+                                            println("Failed to run host hello.qk check: " ++ e)
+                                            let fail = 1 / 0
+                                        }
                                     }
                                 },
                                 Err(e) => {
@@ -1008,10 +1020,14 @@ fn main() {
             Err(e) => { println("Error reading file: " ++ e) return None }
         }
         } else if cmd == "check-self" {
-        println("Running reproducibility tests...")
+        let mut target_src = "src/quokka_interpreter.qka"
+        if len(sys_args) > 2 {
+            target_src = sys_args[2]
+        }
+        println("Running reproducibility tests on " ++ target_src ++ "...")
 
-        println("Stage 0: C parser parsing Quokka interpreter...")
-        let source_res = file_read("src/quokka_interpreter.qka")
+        println("Stage 0: C parser parsing " ++ target_src ++ "...")
+        let source_res = file_read(target_src)
         let source = match source_res {
             Ok(s) => s,
             Err(e) => { println("Error reading file: " ++ e) return None }
@@ -1036,39 +1052,48 @@ fn main() {
         let stage0_out = get_captured()
         let stage0_out_hash = hash_sha256(stage0_out)
 
+        let interp_source = match file_read("src/quokka_interpreter.qka") {
+            Ok(s) => s,
+            Err(e) => { println("Error reading quokka_interpreter: " ++ e) return None }
+        }
+        let interp_ast = parse_native(interp_source)
+
         println("Stage 1: Quokka parser on C host...")
         let old_args = sys_args
-        sys_args = ["quokka", "build_ast", "src/quokka_interpreter.qka"]
-        let stage1_ast = eval_native(stage0_ast)
+        sys_args = ["quokka", "build_ast", target_src]
+        let stage1_ast = eval_native(interp_ast)
         sys_args = old_args
         let stage1_ast_str = serialize_ast(stage1_ast)
         file_write("ast_1.txt", stage1_ast_str)
         let stage1_ast_hash = hash_sha256(stage1_ast_str)
         println("Stage 1 AST hash: " ++ stage1_ast_hash)
         
+        sys_args = ["quokka", "run", "tests/conformance/01_values.qk"]
         clear_captured()
         set_capture_mode(true)
-        eval_native(parse_native(test_src))
+        eval_native(interp_ast)
         set_capture_mode(false)
         let stage1_out = get_captured()
         let stage1_out_hash = hash_sha256(stage1_out)
+        sys_args = old_args
         
         println("Stage 2: Quokka parser on self-hosted interpreter...")
-        let old_args2 = sys_args
-        sys_args = ["quokka", "run", "src/quokka_interpreter.qka", "build_ast", "src/quokka_interpreter.qka"]
-        let stage2_ast = eval_native(stage0_ast)
-        sys_args = old_args2
+        sys_args = ["quokka", "run", target_src, "build_ast", target_src]
+        let stage2_ast = eval_native(interp_ast)
+        sys_args = old_args
         let stage2_ast_str = serialize_ast(stage2_ast)
         file_write("ast_2.txt", stage2_ast_str)
         let stage2_ast_hash = hash_sha256(stage2_ast_str)
         println("Stage 2 AST hash: " ++ stage2_ast_hash)
         
+        sys_args = ["quokka", "run", "src/quokka_interpreter.qka", "run", "tests/conformance/01_values.qk"]
         clear_captured()
         set_capture_mode(true)
-        eval_native(parse_native(test_src))
+        eval_native(interp_ast)
         set_capture_mode(false)
         let stage2_out = get_captured()
         let stage2_out_hash = hash_sha256(stage2_out)
+        sys_args = old_args
 
         if type_of(stage1_ast) == "Option" or type_of(stage2_ast) == "Option" {
             println("x MISMATCH: AST is None (parse failed)")
@@ -1093,6 +1118,9 @@ fn main() {
             println("  Stage 0 AST (" ++ stage0_ast_hash ++ ")")
             println("  Stage 1 AST (" ++ stage1_ast_hash ++ ")")
             println("  Stage 2 AST (" ++ stage2_ast_hash ++ ")")
+            println("  Stage 0 OUT (" ++ stage0_out_hash ++ ")")
+            println("  Stage 1 OUT (" ++ stage1_out_hash ++ ")")
+            println("  Stage 2 OUT (" ++ stage2_out_hash ++ ")")
             return Err("hash mismatch - self-hosting NOT verified")
         }
     } else if cmd == "test" {

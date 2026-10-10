@@ -27,6 +27,10 @@ typedef struct Env Env;
 /* ============================================================
  * Utility
  * ============================================================ */
+void *qk_malloc(size_t size);
+void *qk_realloc(void *ptr, size_t size);
+void qk_free(void *ptr);
+void qk_arena_reset(void);
 char *qk_strdup(const char *s);
 char *qk_strndup(const char *s, int n);
 

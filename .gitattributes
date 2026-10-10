@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.qk text=auto eol=lf
+*.qka text=auto eol=lf
+*.c text=auto eol=lf
+*.h text=auto eol=lf

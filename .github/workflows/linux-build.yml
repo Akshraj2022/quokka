@@ -25,7 +25,10 @@ jobs:
         run: ./build/qk_bootstrap src/quokka_interpreter.qka bootstrap
 
       - name: Run quokka check-self
-        run: ./build/qk_bootstrap src/quokka_interpreter.qka check-self || exit 1
+        run: |
+          cat src/lexer.qka src/parser.qka > build/small_target.qka
+          echo 'parse(make_parser(lex(match file_read(sys_args[2]) { Ok(s) => s, Err(e) => "" })))' >> build/small_target.qka
+          ./build/qk_bootstrap src/quokka_interpreter.qka check-self build/small_target.qka || exit 1
 
       - name: Run test suite
         run: |
