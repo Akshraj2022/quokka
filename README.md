@@ -1,11 +1,11 @@
-<div align="center">
+﻿<div align="center">
   <img src="assets/cfbl.png" alt="Quokka Logo" width="150" />
   <h1>Quokka Programming Language</h1>
   <p><strong>A deterministic, self-hosting in progress, running on a C host language built for modern AI workflows.</strong></p>
 
   <p><a href="https://quokka.space">?? Visit quokka.space</a></p>
 
-  [![Version](https://img.shields.io/badge/version-v0.5.0-blue.svg)](https://quokka.space)
+  [![Version](https://img.shields.io/badge/version-v0.5.1-blue.svg)](https://quokka.space)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://quokka.space)
 </div>
@@ -14,7 +14,7 @@
 
 Quokka is a modern, expression-oriented programming language designed with an unyielding commitment to **verifiable self-hosting** and **deterministic semantics**. It provides a pure, exception-free core language perfectly isolated from its optional, high-performance Machine Learning extensions.
 
-## ✨ Key Features
+## âœ¨ Key Features
 
 * **Verifiably Self-Hosted**: The lexer, parser, AST, and evaluator are implemented in Quokka. The C-based bootstrap host parses the initial source, but we cryptographically verify that the C parser and Quokka parser produce identical ASTs.
 * **Deterministic & Safe**: Exceptions do not exist. Errors are handled safely via Monadic `Option` and `Result` types (`Ok` / `Err`), paired with powerful `match` expressions and the `?` postfix operator.
@@ -23,7 +23,7 @@ Quokka is a modern, expression-oriented programming language designed with an un
 * **GUICHENOTIA**: Includes a native C-based GUI directly shipped inside Quokka for distraction-free programming and execution without any Python dependencies. Run it with `quokka run GUICHENOTIA.qka`.
 * **Native Windows Support**: Install via the automated installer (`EXE/Quokka-Setup.exe`) or via a standalone zip archive.
 
-## 🚀 Getting Started
+## ðŸš€ Getting Started
 
 ### Installation
 
@@ -72,7 +72,7 @@ Run it using the CLI:
 quokka run hello.qka
 ```
 
-## 🏗️ Architecture & Self-Hosting
+## ðŸ—ï¸ Architecture & Self-Hosting
 
 Quokka verifies its own parser and evaluator semantics through a cryptographic check-self process.
 
@@ -96,7 +96,7 @@ Stage 2 AST hash: af780a4a6136e9262fce13014e0bc989115d7f1c305f8846ce904fcba22e70
 v Self-hosting verified: hashes match across stages.
 ```
 
-## 🧠 Joey: The AI / ML Boundary
+## ðŸ§  Joey: The AI / ML Boundary
 
 Quokka isolates complex, heavy, and non-deterministic Machine Learning workflows into a strictly separated process via the Joey API.
 
@@ -113,13 +113,13 @@ match result {
     Err(e) => println("Training failed: " ++ e)
 }
 ```
-*Note: Joey writes the configuration to a secure `.json` IPC manifest and spawns the Python backend, ensuring Quokka remains pure and memory-safe. Joey's CUDA-accelerated training path is Windows/Linux only — CUDA is not available on macOS hardware.*
+*Note: Joey writes the configuration to a secure `.json` IPC manifest and spawns the Python backend, ensuring Quokka remains pure and memory-safe. Joey's CUDA-accelerated training path is Windows/Linux only â€” CUDA is not available on macOS hardware.*
 
-## 📊 Codebase Size
+## ðŸ“Š Codebase Size
 
 The Quokka repository is intentionally lightweight and verifiable. It contains exactly 5736 lines of source code across its C and Quokka components, counted with `find src -name "*.qka" -o -name "*.c" -o -name "*.h" | xargs wc -l` on a clean clone.
 
-## 🛠️ Building from Source
+## ðŸ› ï¸ Building from Source
 
 If you wish to compile Quokka from scratch:
 
@@ -132,8 +132,8 @@ If you wish to compile Quokka from scratch:
    quokka bootstrap
    ```
 
-## 🤝 Contributing
+## ðŸ¤ Contributing
 Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) to learn about our development process, how to propose bugfixes and improvements, and how to build and test your changes.
 
-## 📄 License
+## ðŸ“„ License
 Quokka is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

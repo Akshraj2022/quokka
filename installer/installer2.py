@@ -1,8 +1,8 @@
-        frame = ttk.Frame(self.container)
+﻿        frame = ttk.Frame(self.container)
         if self.img_logo: ttk.Label(frame, image=self.img_logo).pack(pady=20)
         if self.img_txtlogo: ttk.Label(frame, image=self.img_txtlogo).pack()
         
-        ttk.Label(frame, text="Version 1.0.0", font=("Segoe UI", 10, "italic")).pack(pady=5)
+        ttk.Label(frame, text="Version 0.5.1", font=("Segoe UI", 10, "italic")).pack(pady=5)
         ttk.Label(frame, text="A deterministic, self-hosted language for modern AI workflows.", font=("Segoe UI", 12)).pack(pady=20)
         
         btn_frame = ttk.Frame(frame)
@@ -36,10 +36,12 @@
         self.var_path = BooleanVar(value=True)
         self.var_assoc = BooleanVar(value=True)
         self.var_joey = BooleanVar(value=True)
+        self.var_gui = BooleanVar(value=True)
         
         ttk.Checkbutton(comp_frame, text="Add Quokka to PATH", variable=self.var_path).pack(anchor=W)
-        ttk.Checkbutton(comp_frame, text="Associate .qko and .🌿 files with Quokka", variable=self.var_assoc).pack(anchor=W)
+        ttk.Checkbutton(comp_frame, text="Associate .qk and .qka files with Quokka", variable=self.var_assoc).pack(anchor=W)
         ttk.Checkbutton(comp_frame, text="Install Joey ML Extension", variable=self.var_joey).pack(anchor=W)
+        ttk.Checkbutton(comp_frame, text="Install GUICHENOTIA (Desktop Shortcut)", variable=self.var_gui).pack(anchor=W)
         
         btn_frame = ttk.Frame(frame)
         btn_frame.pack(side=BOTTOM, fill=X, pady=20, padx=20)

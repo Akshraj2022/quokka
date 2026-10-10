@@ -1,4 +1,4 @@
-name: Release v0.5.0
+﻿name: Release v0.5.1
 
 on:
   push:
@@ -35,8 +35,11 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           mkdir build
-          gcc -std=c11 -Wall -Wextra -Wno-unused-parameter -Wl,--stack,16777216 -o build/quokka.exe src/bootstrap/main.c src/bootstrap/lexer.c src/bootstrap/parser.c src/bootstrap/interpreter.c src/bootstrap/sha256.c src/joey/joey_native.c src/joey/joey_watch.c src/joey/joey_gui.c -lws2_32 -luser32 -lgdi32 -lcomdlg32
-          Compress-Archive -Path build/quokka.exe, GUICHENOTIA.qka -DestinationPath ${{ matrix.file }}
+          windres quokka.rc -O coff -o build/quokka.res
+          windres guichenotia.rc -O coff -o build/guichenotia.res
+          gcc -std=c11 -Wall -Wextra -Wno-unused-parameter -Wl,--stack,16777216 -o build/quokka.exe src/bootstrap/main.c src/bootstrap/lexer.c src/bootstrap/parser.c src/bootstrap/interpreter.c src/bootstrap/sha256.c src/joey/joey_native.c src/joey/joey_watch.c src/joey/joey_gui.c build/quokka.res -lws2_32 -luser32 -lgdi32 -lcomdlg32
+          gcc src/guichenotia_app.c build/guichenotia.res -o build/GUICHENOTIA.exe -mwindows
+          Compress-Archive -Path build/quokka.exe, build/GUICHENOTIA.exe, GUICHENOTIA.qka -DestinationPath ${{ matrix.file }}
 
       - name: Build Linux
         if: matrix.os == 'ubuntu-latest'
@@ -48,7 +51,7 @@ jobs:
           cp GUICHENOTIA.qka package/usr/local/bin/
           mkdir -p package/DEBIAN
           echo "Package: quokka" > package/DEBIAN/control
-          echo "Version: 0.5.0" >> package/DEBIAN/control
+          echo "Version: 0.5.1" >> package/DEBIAN/control
           echo "Section: base" >> package/DEBIAN/control
           echo "Priority: optional" >> package/DEBIAN/control
           echo "Architecture: amd64" >> package/DEBIAN/control

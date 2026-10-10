@@ -50,8 +50,24 @@
                 self.add_to_path(target_dir)
                 
             if self.var_assoc.get():
-                self.update_progress(85, "Associating .qko and .🌿 files...")
+                self.update_progress(85, "Associating .qk and .qka files...")
                 self.associate_files(target_dir)
+                
+            if hasattr(self, 'var_gui') and self.var_gui.get():
+                self.update_progress(95, "Creating GUICHENOTIA shortcut...")
+                gui_exe = os.path.join(target_dir, "build", "GUICHENOTIA.exe")
+                desktop = os.path.join(os.environ["USERPROFILE"], "Desktop")
+                vbs_path = os.path.join(target_dir, "shortcut.vbs")
+                with open(vbs_path, "w") as f:
+                    f.write(f'Set oWS = WScript.CreateObject("WScript.Shell")\n')
+                    f.write(f'sLinkFile = "{desktop}\\GUICHENOTIA.lnk"\n')
+                    f.write(f'Set oLink = oWS.CreateShortcut(sLinkFile)\n')
+                    f.write(f'oLink.TargetPath = "{gui_exe}"\n')
+                    f.write(f'oLink.WorkingDirectory = "{target_dir}"\n')
+                    f.write(f'oLink.Description = "Quokka Native IDE"\n')
+                    f.write(f'oLink.Save\n')
+                os.system(f'cscript //nologo "{vbs_path}"')
+                if os.path.exists(vbs_path): os.remove(vbs_path)
                 
             self.update_progress(100, "Finishing up...")
             time.sleep(0.5)

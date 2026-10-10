@@ -1,0 +1,24 @@
+﻿1 ICON "assets/icon.ico"
+
+1 VERSIONINFO
+FILEVERSION     0,5,1,0
+PRODUCTVERSION  0,5,1,0
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904E4"
+    BEGIN
+      VALUE "CompanyName", "Akshraj2022"
+      VALUE "FileDescription", "GUICHENOTIA Native UI"
+      VALUE "FileVersion", "0.5.1.0"
+      VALUE "InternalName", "guichenotia"
+      VALUE "OriginalFilename", "GUICHENOTIA.exe"
+      VALUE "ProductName", "Quokka GUICHENOTIA"
+      VALUE "ProductVersion", "0.5.1"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x409, 1252
+  END
+END
