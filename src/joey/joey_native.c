@@ -66,6 +66,11 @@ bool joey_execute_job(const char* job_file) {
     fseek(f, 0, SEEK_SET);
     
     char *config = malloc(fsize + 1);
+    if (!config) {
+        fclose(f);
+        fprintf(stderr, "[Joey Native] Error: Out of memory reading %s\n", job_file);
+        return false;
+    }
     fread(config, 1, fsize, f);
     fclose(f);
     config[fsize] = 0;
