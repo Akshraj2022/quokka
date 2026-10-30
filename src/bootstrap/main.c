@@ -152,15 +152,23 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    int script_idx = 1;
+    if (strcmp(argv[1], "run") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "Error: 'quokka run' expects a file path\n");
+            return 1;
+        }
+        script_idx = 2;
+    }
+
     // Pass arguments to Quokka scripts
     Value sys_args = val_list();
-    for (int i = 1; i < argc; i++) {
+    for (int i = script_idx; i < argc; i++) {
         list_push(&sys_args, val_string(argv[i]));
     }
 
-    char *source = read_file(argv[1]);
+    char *source = read_file(argv[script_idx]);
     if (!source) {
-        fprintf(stderr, "Could not open file '%s'\n", argv[1]);
         return 1;
     }
 
