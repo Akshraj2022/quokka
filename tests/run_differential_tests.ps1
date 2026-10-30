@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
-$quokka_exe = "..\build\qk_bootstrap.exe"
-$self_hosted = "..\src\quokka_interpreter.qk"
+$quokka_exe = "..\build\quokka.exe"
+if (-not (Test-Path $quokka_exe)) { $quokka_exe = "..\build\qk_bootstrap.exe" }
+$self_hosted = "..\src\quokka_interpreter.qka"
 
 Write-Host "Running Differential Tests..."
 Write-Host "==========================="
