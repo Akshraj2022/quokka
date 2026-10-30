@@ -83,7 +83,7 @@ void GuiRunScript() {
         CloseHandle(pi.hThread);
         
         char exitMsg[128];
-        sprintf(exitMsg, "\r\n> Process exited with code %lu\r\n", exitCode);
+        snprintf(exitMsg, sizeof(exitMsg), "\r\n> Process exited with code %lu\r\n", exitCode);
         SendMessage(hConsole, EM_SETSEL, (WPARAM)-1, (LPARAM)-1);
         SendMessage(hConsole, EM_REPLACESEL, FALSE, (LPARAM)exitMsg);
     } else {
@@ -123,7 +123,7 @@ void GuiOpenFile(HWND hwnd) {
             free(buf);
             
             char title[300];
-            sprintf(title, "GUICHENOTIA - %s", szFile);
+            snprintf(title, sizeof(title), "GUICHENOTIA - %s", szFile);
             SetWindowText(hwnd, title);
         }
     }
@@ -146,7 +146,7 @@ void GuiSaveFile(HWND hwnd) {
         if (GetSaveFileName(&ofn) == TRUE) {
             strcpy(currentFile, szFile);
             char title[300];
-            sprintf(title, "GUICHENOTIA - %s", szFile);
+            snprintf(title, sizeof(title), "GUICHENOTIA - %s", szFile);
             SetWindowText(hwnd, title);
         } else {
             return;
