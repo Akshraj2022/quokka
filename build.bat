@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  Quokka Language — Build Script (Windows)
+REM  Quokka Language -- Build Script (Windows)
 REM  Requires GCC (MinGW-w64 / WinLibs)
 REM ============================================================
 
@@ -8,9 +8,10 @@ echo Building Quokka...
 
 if not exist "build" mkdir build
 
-gcc -std=c11 -Wall -Wextra -Wno-unused-parameter ^
+gcc -std=c11 -Wall -Wextra -Wno-unused-parameter -Wl,--stack,16777216 ^
     -o build\quokka.exe ^
-    src\bootstrap\main.c src\bootstrap\lexer.c src\bootstrap\parser.c src\bootstrap\interpreter.c src\bootstrap\sha256.c src\joey\joey_native.c src\joey\joey_watch.c -lws2_32
+    src\bootstrap\main.c src\bootstrap\lexer.c src\bootstrap\parser.c src\bootstrap\interpreter.c src\bootstrap\sha256.c src\joey\joey_native.c src\joey\joey_watch.c src\joey\joey_gui.c ^
+    -lws2_32 -luser32 -lgdi32 -lcomdlg32
 
 if %ERRORLEVEL% EQU 0 (
     echo.
