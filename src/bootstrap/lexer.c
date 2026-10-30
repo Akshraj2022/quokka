@@ -152,8 +152,10 @@ static TokenType ident_type(const char *start, int length) {
 static Token scan_string(Lexer *lex) {
     while (!at_end(lex) && peek(lex) != '"') {
         if (peek(lex) == '\n') lex->line++;
-        if (peek(lex) == '\\' && !at_end(lex)) {
-            advance(lex); /* skip escaped char */
+        if (peek(lex) == '\\') {
+            advance(lex); /* skip '\\' */
+            if (!at_end(lex)) advance(lex); /* skip escaped char */
+            continue;
         }
         advance(lex);
     }
