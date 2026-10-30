@@ -123,6 +123,7 @@ int joey_watch_main(void) {
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) == SOCKET_ERROR) {
         printf("Failed to bind socket on port 9001. Is another instance running?\n");
         closesocket(server_fd);
+        cleanup();
         return 1;
     }
 
