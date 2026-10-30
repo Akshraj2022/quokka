@@ -1,11 +1,19 @@
 $ErrorActionPreference = "Stop"
-$exe = "..\build\qk_bootstrap.exe"
+
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$rootDir = Split-Path -Parent $scriptDir
+
+$exe = Join-Path $rootDir "build\quokka.exe"
 if (-not (Test-Path $exe)) {
-    Write-Host "Please build first."
+    $exe = Join-Path $rootDir "build\qk_bootstrap.exe"
+}
+if (-not (Test-Path $exe)) {
+    Write-Host "Please build first (build\quokka.exe not found)."
     exit 1
 }
 
-$tests = Get-ChildItem ".\conformance\*.qk"
+$testPattern = Join-Path $scriptDir "conformance\*.qk"
+$tests = Get-ChildItem $testPattern
 $all_passed = $true
 
 foreach ($t in $tests) {
