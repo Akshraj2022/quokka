@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.8] - 2026-10-30
+
+### Fixed
+- Implemented full interpreter shutdown cleanup in `interp_free()` to release global scope and return values.
+- Added temporary evaluation result cleanup in REPL loop via `val_free(result)` to prevent unbounded memory growth.
+- Added negative file size validation in `read_file()` to avoid invalid allocations on corrupted file descriptors.
+
 ## [0.8.7] - 2026-10-30
 
 ### Fixed
@@ -54,6 +61,13 @@
 - Added CUDA error checking following kernel launch and synchronization.
 
 # Changelog
+
+## [0.8.8] - 2026-10-30
+
+### Fixed
+- Implemented full interpreter shutdown cleanup in `interp_free()` to release global scope and return values.
+- Added temporary evaluation result cleanup in REPL loop via `val_free(result)` to prevent unbounded memory growth.
+- Added negative file size validation in `read_file()` to avoid invalid allocations on corrupted file descriptors.
 
 ## [0.8.7] - 2026-10-30
 

@@ -76,6 +76,11 @@ static char *read_file(const char *path) {
     fseek(file, 0, SEEK_END);
     long size = ftell(file);
     fseek(file, 0, SEEK_SET);
+    if (size < 0) {
+        fprintf(stderr, "Error: Failed to determine file size for '%s'\n", path);
+        fclose(file);
+        return NULL;
+    }
 
     char *buffer = (char *)malloc(size + 1);
     if (!buffer) {
@@ -101,7 +106,7 @@ static char *read_file(const char *path) {
  * ============================================================ */
 
 static void repl(void) {
-    printf("Quokka v0.8.7  --  \"If you can read it, you can know what it does.\"\n");
+    printf("Quokka v0.8.8  --  \"If you can read it, you can know what it does.\"\n");
     printf("Type expressions or statements. Ctrl+C to exit.\n\n");
 
     /* We keep one persistent interpreter across REPL lines
@@ -136,6 +141,7 @@ static void repl(void) {
             val_print(result);
             printf("\n");
         }
+        val_free(result);
     }
 
     interp_free(&interp);
