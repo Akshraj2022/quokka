@@ -8,7 +8,7 @@ def run_job(config_path):
         sys.exit(1)
 
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             job = json.load(f)
     except Exception as e:
         print(f"Error reading job config: {e}")
