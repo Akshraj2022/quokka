@@ -55,6 +55,14 @@ extern "C" void joey_cuda_lora_forward(float* x, float* W, float* A, float* B, f
     dim3 threads(16, 16);
     dim3 blocks((d_model + threads.x - 1) / threads.x, (batch_seq + threads.y - 1) / threads.y);
     lora_forward_kernel<<<blocks, threads>>>(x, W, A, B, y, batch_seq, d_model, r);
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "[Joey CUDA Error] Kernel launch failed: %s\n", cudaGetErrorString(err));
+    }
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        fprintf(stderr, "[Joey CUDA Error] Kernel launch failed: %s\n", cudaGetErrorString(err));
+    }
     cudaDeviceSynchronize();
 }
 
