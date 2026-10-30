@@ -1,4 +1,4 @@
-﻿name: Release v0.5.1
+﻿name: Release
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
           cp GUICHENOTIA.qka package/usr/local/bin/
           mkdir -p package/DEBIAN
           echo "Package: quokka" > package/DEBIAN/control
-          echo "Version: 0.5.1" >> package/DEBIAN/control
+          echo "Version: 0.9.0" >> package/DEBIAN/control
           echo "Section: base" >> package/DEBIAN/control
           echo "Priority: optional" >> package/DEBIAN/control
           echo "Architecture: amd64" >> package/DEBIAN/control
