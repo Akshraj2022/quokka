@@ -1,9 +1,9 @@
-﻿/*============================================================
- * Quokka Language â€” Entry Point
+/*============================================================
+ * Quokka Language -- Entry Point
  *
  * Usage:
- *   quokka                   â€” start REPL
- *   quokka <file.qka>        â€” run a .qka file
+ *   quokka                   -- start REPL
+ *   quokka <file.qka>        -- run a .qka file
  *============================================================*/
 
 #include "quokka.h"
@@ -97,7 +97,7 @@ static int run(const char *source) {
  * ============================================================ */
 
 static void repl(void) {
-    printf("Quokka v0.5.1  â€”  \"If you can read it, you can know what it does.\"\n");
+    printf("Quokka v0.5.5  --  \"If you can read it, you can know what it does.\"\n");
     printf("Type expressions or statements. Ctrl+C to exit.\n\n");
 
     /* We keep one persistent interpreter across REPL lines
