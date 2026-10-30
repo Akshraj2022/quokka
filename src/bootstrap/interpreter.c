@@ -452,8 +452,10 @@ static Value builtin_file_read(Value *args, int argc, int line) {
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
+    if (fsize < 0) { fclose(f); return val_err(val_string("Invalid file size")); }
     char *string = malloc(fsize + 1);
-    fread(string, fsize, 1, f);
+    if (!string) { fclose(f); return val_err(val_string("Out of memory reading file")); }
+    if (fsize > 0) fread(string, fsize, 1, f);
     fclose(f);
     string[fsize] = 0;
     Value res = val_string(string);
