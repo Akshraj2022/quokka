@@ -127,6 +127,7 @@ void val_print(Value v) {
         case VAL_FN:     printf("<fn %s>", v.as.fn.name ? v.as.fn.name : "lambda"); break;
         case VAL_BUILTIN:printf("<builtin>"); break;
         case VAL_UNIT:   printf("()"); break;
+        case VAL_AST_NODE: printf("<ast_node>"); break;
         case VAL_LIST: {
             printf("[");
             for (int i = 0; i < v.as.list->count; i++) {
