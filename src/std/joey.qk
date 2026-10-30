@@ -69,7 +69,7 @@ fn pipeline() {
             Ok(v) => {
                 // Execute Python backend
                 let use_native = true
-                let result = Ok(false)
+                let mut result = Ok(false)
                 if use_native {
                     result = joey_run_native(".joey_job.json")
                 } else {

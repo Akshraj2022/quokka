@@ -316,7 +316,7 @@ static Node *parse_primary(Parser *p) {
             }
             consume(p, TOK_FAT_ARROW, "Expect '=>' after pattern");
             arm.body = expression(p);
-            n->as.match_expr.arms[n->as.match_expr.arm_count++] = arm;
+            if (arm.body) { n->as.match_expr.arms[n->as.match_expr.arm_count++] = arm; }
             if (!match(p, TOK_COMMA)) break;
         }
         consume(p, TOK_RBRACE, "Expect '}' after match arms");

@@ -106,7 +106,7 @@ static char *read_file(const char *path) {
  * ============================================================ */
 
 static void repl(void) {
-    printf("Quokka v0.8.8  --  \"If you can read it, you can know what it does.\"\n");
+    printf("Quokka v0.8.9  --  \"If you can read it, you can know what it does.\"\n");
     printf("Type expressions or statements. Ctrl+C to exit.\n\n");
 
     /* We keep one persistent interpreter across REPL lines

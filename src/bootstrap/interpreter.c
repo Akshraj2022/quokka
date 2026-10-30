@@ -1099,10 +1099,13 @@ Value interp_exec(Interp *interp, Node *node) {
         /* String concatenation: ++ */
         if (node->as.binary.op == TOK_CONCAT) {
             if (left.type == VAL_STRING && right.type == VAL_STRING) {
-                size_t len = strlen(left.as.string_val) + strlen(right.as.string_val);
-                char *buf = malloc(len + 1);
-                strcpy(buf, left.as.string_val);
-                strcat(buf, right.as.string_val);
+                size_t len_l = strlen(left.as.string_val);
+                size_t len_r = strlen(right.as.string_val);
+                size_t len = len_l + len_r;
+                char *buf = qk_malloc(len + 1);
+                memcpy(buf, left.as.string_val, len_l);
+                memcpy(buf + len_l, right.as.string_val, len_r);
+                buf[len] = '\0';
                 Value v; v.type = VAL_STRING; v.as.string_val = buf;
                 return v;
             }

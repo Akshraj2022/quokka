@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.9] - 2026-10-30
+
+### Fixed
+- Fixed immutable variable reassignment bug in `src/std/joey.qk` by declaring `let mut result`.
+- Optimized string concatenation in `interpreter.c` using bounded `memcpy` and `qk_malloc`.
+- Added NULL body guard for match arms in `parser.c` to prevent corrupted match arm execution.
+
 ## [0.8.8] - 2026-10-30
 
 ### Fixed
@@ -61,6 +68,13 @@
 - Added CUDA error checking following kernel launch and synchronization.
 
 # Changelog
+
+## [0.8.9] - 2026-10-30
+
+### Fixed
+- Fixed immutable variable reassignment bug in `src/std/joey.qk` by declaring `let mut result`.
+- Optimized string concatenation in `interpreter.c` using bounded `memcpy` and `qk_malloc`.
+- Added NULL body guard for match arms in `parser.c` to prevent corrupted match arm execution.
 
 ## [0.8.8] - 2026-10-30
 
