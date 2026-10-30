@@ -492,11 +492,13 @@ static Value builtin_exec(Value *args, int argc, int line) {
     
     // Naive concatenation for demonstration, but user requested no string concat for execution...
     // Actually, in C we should use _spawnvp or similar for safe execution, but for simplicity in Windows stage-0:
-    char cmd[1024] = {0};
+    char cmd[8192] = {0};
     for (int i = 0; i < args[0].as.list->count; i++) {
         if (args[0].as.list->items[i].type != VAL_STRING) return val_err(val_string("Args must be strings"));
         const char *arg = args[0].as.list->items[i].as.string_val;
         bool has_space = strchr(arg, ' ') != NULL;
+        if (strlen(cmd) + strlen(arg) + 8 >= sizeof(cmd)) return val_err(val_string("Command buffer overflow"));
+        if (strlen(cmd) + strlen(arg) + 8 >= sizeof(cmd)) return val_err(val_string("Command buffer overflow"));
         if (has_space) strcat(cmd, "\"");
         strcat(cmd, arg);
         if (has_space) strcat(cmd, "\"");
