@@ -880,7 +880,7 @@ char captured_output[65536] = {0};
 static Value builtin_capture_println(Value *args, int argc, int line) {
     (void)line;
     if (argc != 1) return val_unit();
-    char buf[256] = {0};
+    /* unused buf removed */
     if (args[0].type == VAL_STRING) {
         strncat(captured_output, args[0].as.string_val, sizeof(captured_output) - strlen(captured_output) - 1);
     } else {
