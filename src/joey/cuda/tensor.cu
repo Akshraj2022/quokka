@@ -48,6 +48,10 @@ __global__ void lora_forward_kernel(const float* x, const float* W, const float*
 }
 
 extern "C" void joey_cuda_lora_forward(float* x, float* W, float* A, float* B, float* y, int batch_seq, int d_model, int r) {
+    if (r > 128) {
+        fprintf(stderr, "[Joey CUDA Warning] LoRA rank %d exceeds maximum 128, clamping.\n", r);
+        r = 128;
+    }
     dim3 threads(16, 16);
     dim3 blocks((d_model + threads.x - 1) / threads.x, (batch_seq + threads.y - 1) / threads.y);
     lora_forward_kernel<<<blocks, threads>>>(x, W, A, B, y, batch_seq, d_model, r);
