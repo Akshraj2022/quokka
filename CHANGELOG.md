@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.7] - 2026-10-30
+
+### Fixed
+- Added string escape sequence processing (`\n`, `\t`, `\r`, `\\`, `\"`) in parser string literals.
+- Guarded `block_expr` and `parser_parse` against appending NULL statement nodes on parse errors.
+- Secured `env_snapshot` allocations with `qk_malloc` to prevent silent allocation failures.
+- Added executable auto-detection in `tests/test_negative.sh` across standard build binaries.
+
 ## [0.8.6] - 2026-10-30 - Comprehensive 100-Bug Fix Release
 
 ### Memory & Allocation Safety
@@ -46,6 +54,14 @@
 - Added CUDA error checking following kernel launch and synchronization.
 
 # Changelog
+
+## [0.8.7] - 2026-10-30
+
+### Fixed
+- Added string escape sequence processing (`\n`, `\t`, `\r`, `\\`, `\"`) in parser string literals.
+- Guarded `block_expr` and `parser_parse` against appending NULL statement nodes on parse errors.
+- Secured `env_snapshot` allocations with `qk_malloc` to prevent silent allocation failures.
+- Added executable auto-detection in `tests/test_negative.sh` across standard build binaries.
 
 ## [v0.5.0]
 ### Fixed

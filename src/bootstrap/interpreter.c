@@ -237,7 +237,7 @@ void env_define(Env *env, const char *name, Value val, bool is_mut) {
         }
         curr = curr->next;
     }
-    Binding *b = malloc(sizeof(Binding));
+    Binding *b = qk_malloc(sizeof(Binding));
     b->name   = qk_strdup(name);
     b->value  = val_clone(val);
     b->is_mut = is_mut;
@@ -275,14 +275,14 @@ bool env_set(Env *env, const char *name, Value val) {
 
 Env *env_snapshot(Env *env) {
     if (!env) return NULL;
-    Env *new_env = malloc(sizeof(Env));
+    Env *new_env = qk_malloc(sizeof(Env));
     new_env->parent   = env_snapshot(env->parent);
     new_env->bindings = NULL;
 
     Binding *curr = env->bindings;
     Binding *last = NULL;
     while (curr) {
-        Binding *b = malloc(sizeof(Binding));
+        Binding *b = qk_malloc(sizeof(Binding));
         b->name   = qk_strdup(curr->name);
         b->value  = val_clone(curr->value);
         b->is_mut = curr->is_mut;

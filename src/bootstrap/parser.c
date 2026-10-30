@@ -1,5 +1,27 @@
 #include "quokka.h"
 
+static char *unescape_string(const char *src, int len) {
+    char *dest = qk_malloc(len + 1);
+    int di = 0;
+    for (int si = 0; si < len; si++) {
+        if (src[si] == '\\' && si + 1 < len) {
+            si++;
+            switch (src[si]) {
+                case 'n': dest[di++] = '\n'; break;
+                case 't': dest[di++] = '\t'; break;
+                case 'r': dest[di++] = '\r'; break;
+                case '\\': dest[di++] = '\\'; break;
+                case '"': dest[di++] = '"'; break;
+                default: dest[di++] = src[si]; break;
+            }
+        } else {
+            dest[di++] = src[si];
+        }
+    }
+    dest[di] = '\0';
+    return dest;
+}
+
 void nodelist_init(NodeList *list) {
     list->count = 0;
     list->cap = 0;
@@ -133,7 +155,7 @@ static Node *parse_primary(Parser *p) {
         // Strip quotes and handle very basic escapes if needed, for now just extract content
         int len = p->previous.length - 2;
         if (len < 0) len = 0;
-        char *s = qk_strndup(p->previous.start + 1, len);
+        char *s = unescape_string(p->previous.start + 1, len);
         n->as.string_val = s;
         return n;
     }
@@ -627,9 +649,7 @@ Node *parser_parse(Parser *p) {
     
     while (!check(p, TOK_EOF)) {
         Node *stmt = statement(p);
-        if (stmt) {
-            nodelist_push(&prog->as.program, stmt);
-        }
+        if (stmt) nodelist_push(&prog->as.program, stmt);
         if (p->panic_mode) synchronize(p);
     }
     

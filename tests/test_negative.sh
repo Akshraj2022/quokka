@@ -1,12 +1,17 @@
 #!/bin/sh
 set -e
 
+EXE="./build/quokka.exe"
+if [ ! -f "$EXE" ]; then EXE="./build/quokka_standalone.exe"; fi
+if [ ! -f "$EXE" ]; then EXE="./build/qk_bootstrap.exe"; fi
+if [ ! -f "$EXE" ]; then EXE="./build/qk_bootstrap"; fi
+
 echo "Preparing small target for check-self..."
 cat src/lexer.qka src/parser.qka > build/small_target.qka
 echo 'parse(make_parser(lex(match file_read(sys_args[2]) { Ok(s) => s, Err(e) => "" })))' >> build/small_target.qka
 
 echo "Running positive control for check-self..."
-./build/qk_bootstrap.exe src/quokka_interpreter.qka check-self build/small_target.qka > build/positive.out 2>&1 || status=$?
+$EXE src/quokka_interpreter.qka check-self build/small_target.qka > build/positive.out 2>&1 || status=$?
 if [ "${status:-0}" -ne 0 ]; then
     echo "Positive control failed! Output:"
     cat build/positive.out
@@ -26,7 +31,7 @@ with open('build/corrupted.qka', 'w', encoding='utf-8') as f:
 "
 
 set +e
-./build/qk_bootstrap.exe src/quokka_interpreter.qka check-self build/corrupted.qka > build/negative.out 2>&1
+$EXE src/quokka_interpreter.qka check-self build/corrupted.qka > build/negative.out 2>&1
 status=$?
 set -e
 
