@@ -10,6 +10,8 @@
 #include <windows.h>
 
 static HWND hEditor, hConsole, hBtnRun, hBtnOpen, hBtnSave;
+static HFONT hFont = NULL;
+static HBRUSH hBrush = NULL;
 static WNDPROC OldEditorProc;
 static char currentFile[MAX_PATH] = "";
 
@@ -181,7 +183,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                 WS_CHILD | WS_VISIBLE | WS_VSCROLL | WS_BORDER | ES_LEFT | ES_MULTILINE | ES_AUTOVSCROLL | ES_READONLY,
                 10, 460, 860, 200, hwnd, (HMENU)5, NULL, NULL);
             
-            HFONT hFont = CreateFont(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, 
+            hFont = CreateFont(16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, 
                 OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_MODERN, "Consolas");
             SendMessage(hEditor, WM_SETFONT, (WPARAM)hFont, TRUE);
             SendMessage(hConsole, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -199,6 +201,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             break;
             
         case WM_DESTROY:
+            if (hFont) { DeleteObject(hFont); hFont = NULL; }
+            if (hBrush) { DeleteObject(hBrush); hBrush = NULL; }
             PostQuitMessage(0);
             return 0;
     }
@@ -213,7 +217,8 @@ void joey_start_gui() {
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
-    wc.hbrBackground = CreateSolidBrush(RGB(250, 246, 240)); // BG_COLOR
+    hBrush = CreateSolidBrush(RGB(250, 246, 240));
+    wc.hbrBackground = hBrush;
     
     RegisterClass(&wc);
     
