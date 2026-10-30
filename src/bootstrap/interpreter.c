@@ -54,7 +54,7 @@ Value val_unit(void)        { Value val; val.type = VAL_UNIT;   return val; }
 
 Value val_string(const char *s) {
     Value val; val.type = VAL_STRING;
-    val.as.string_val = qk_strdup(s);
+    val.as.string_val = qk_strdup(s ? s : "");
     return val;
 }
 
@@ -62,21 +62,21 @@ Value val_none(void) { Value val; val.type = VAL_NONE; return val; }
 
 Value val_some(Value inner) {
     Value val; val.type = VAL_SOME;
-    val.as.inner = malloc(sizeof(Value));
+    val.as.inner = qk_malloc(sizeof(Value));
     *val.as.inner = val_clone(inner);
     return val;
 }
 
 Value val_ok(Value inner) {
     Value val; val.type = VAL_OK;
-    val.as.inner = malloc(sizeof(Value));
+    val.as.inner = qk_malloc(sizeof(Value));
     *val.as.inner = val_clone(inner);
     return val;
 }
 
 Value val_err(Value inner) {
     Value val; val.type = VAL_ERR;
-    val.as.inner = malloc(sizeof(Value));
+    val.as.inner = qk_malloc(sizeof(Value));
     *val.as.inner = val_clone(inner);
     return val;
 }
@@ -86,7 +86,7 @@ Value val_builtin(BuiltinFn f){ Value val; val.type = VAL_BUILTIN; val.as.builti
 
 Value val_list(void) {
     Value val; val.type = VAL_LIST;
-    val.as.list = malloc(sizeof(QkList));
+    val.as.list = qk_malloc(sizeof(QkList));
     val.as.list->items = NULL;
     val.as.list->count = 0;
     val.as.list->cap   = 0;
@@ -111,6 +111,21 @@ const char *val_type_name(Value v) {
         case VAL_UNIT:    return "Unit";
         case VAL_LIST:    return "List";
         default:          return "Unknown";
+    }
+}
+
+void val_free(Value v) {
+    switch (v.type) {
+        case VAL_STRING:
+            if (v.as.string_val) { free(v.as.string_val); }
+            break;
+        case VAL_SOME:
+        case VAL_OK:
+        case VAL_ERR:
+            if (v.as.inner) { val_free(*v.as.inner); free(v.as.inner); }
+            break;
+        default:
+            break;
     }
 }
 
@@ -146,7 +161,7 @@ bool val_equal(Value a, Value b) {
         case VAL_INT:     return a.as.int_val == b.as.int_val;
         case VAL_FLOAT:   return a.as.float_val == b.as.float_val;
         case VAL_BOOL:    return a.as.bool_val == b.as.bool_val;
-        case VAL_STRING:  return strcmp(a.as.string_val, b.as.string_val) == 0;
+        case VAL_STRING:  return (a.as.string_val && b.as.string_val) ? strcmp(a.as.string_val, b.as.string_val) == 0 : (a.as.string_val == b.as.string_val);
         case VAL_NONE:    return true;
         case VAL_SOME:
         case VAL_OK:
@@ -285,7 +300,8 @@ void env_free(Env *env) {
     Binding *curr = env->bindings;
     while (curr) {
         Binding *next = curr->next;
-        free(curr->name);
+        if (curr->name) free(curr->name);
+        val_free(curr->value);
         free(curr);
         curr = next;
     }
@@ -298,12 +314,16 @@ void env_free(Env *env) {
 static Value builtin_print(Value *args, int argc, int line) {
     (void)line;
     for (int i = 0; i < argc; i++) val_print(args[i]);
-    printf("\n");
+    fflush(stdout);
     return val_unit();
 }
 
 static Value builtin_println(Value *args, int argc, int line) {
-    return builtin_print(args, argc, line);
+    (void)line;
+    for (int i = 0; i < argc; i++) val_print(args[i]);
+    printf("\n");
+    fflush(stdout);
+    return val_unit();
 }
 
 static Value builtin_to_string(Value *args, int argc, int line) {
@@ -387,6 +407,11 @@ static Value builtin_and_then(Value *args, int argc, int line) {
         return call_value(args[1], &inner, 1, line);
     } else if (args[0].type == VAL_NONE) {
         return val_none();
+    } else if (args[0].type == VAL_OK) {
+        Value inner = *args[0].as.inner;
+        return call_value(args[1], &inner, 1, line);
+    } else if (args[0].type == VAL_ERR) {
+        return val_clone(args[0]);
     }
     return val_unit();
 }
@@ -424,7 +449,7 @@ static Value builtin_input(Value *args, int argc, int line) {
     (void)args; (void)argc; (void)line;
     char buf[1024];
     if (fgets(buf, sizeof(buf), stdin)) {
-        buf[strcspn(buf, "\n")] = 0;
+        buf[strcspn(buf, "\r\n")] = 0;
         return val_string(buf);
     }
     return val_string("");
@@ -434,15 +459,16 @@ static Value builtin_substring(Value *args, int argc, int line) {
     (void)line;
     if (argc != 3 || args[0].type != VAL_STRING || args[1].type != VAL_INT || args[2].type != VAL_INT)
         return val_string("");
-    int start = (int)args[1].as.int_val;
-    int end = (int)args[2].as.int_val;
-    int len = strlen(args[0].as.string_val);
+    int64_t start = args[1].as.int_val;
+    int64_t end = args[2].as.int_val;
+    int64_t len = (int64_t)strlen(args[0].as.string_val);
     if (start < 0) start = 0;
     if (end > len) end = len;
     if (start >= end) return val_string("");
-    char *buf = malloc(end - start + 1);
-    memcpy(buf, args[0].as.string_val + start, end - start);
-    buf[end - start] = '\0';
+    size_t sub_len = (size_t)(end - start);
+    char *buf = qk_malloc(sub_len + 1);
+    memcpy(buf, args[0].as.string_val + start, sub_len);
+    buf[sub_len] = '\0';
     Value res = val_string(buf);
     free(buf);
     return res;
@@ -472,8 +498,10 @@ static Value builtin_file_write(Value *args, int argc, int line) {
     if (argc != 2 || args[0].type != VAL_STRING || args[1].type != VAL_STRING) return val_err(val_string("Expected (path, content)"));
     FILE *f = fopen(args[0].as.string_val, "wb");
     if (!f) return val_err(val_string("Cannot open file"));
-    fwrite(args[1].as.string_val, 1, strlen(args[1].as.string_val), f);
+    size_t to_write = strlen(args[1].as.string_val);
+    size_t written = fwrite(args[1].as.string_val, 1, to_write, f);
     fclose(f);
+    if (written != to_write) return val_err(val_string("Failed to write all bytes to file"));
     return val_ok(val_bool(true));
 }
 
@@ -1014,7 +1042,7 @@ Value interp_exec(Interp *interp, Node *node) {
         Value operand = interp_exec(interp, node->as.unary.operand);
         if (interp->had_error) return val_unit();
         if (node->as.unary.op == TOK_MINUS) {
-            if (operand.type == VAL_INT)   return val_int(-operand.as.int_val);
+            if (operand.type == VAL_INT)   { if (operand.as.int_val == INT64_MIN) { fprintf(stderr, "[line %d] Runtime error: Integer overflow on negation.\n", node->line); interp->had_error = true; return val_unit(); } return val_int(-operand.as.int_val); }
             if (operand.type == VAL_FLOAT) return val_float(-operand.as.float_val);
             fprintf(stderr, "[line %d] Runtime error: Unary '-' requires Int or Float.\n", node->line);
             interp->had_error = true; return val_unit();
@@ -1097,9 +1125,11 @@ Value interp_exec(Interp *interp, Node *node) {
                 case TOK_STAR:  return val_int(l * r);
                 case TOK_SLASH:
                     if (r == 0) { fprintf(stderr, "[line %d] Runtime error: Division by zero.\n", node->line); interp->had_error = true; return val_unit(); }
+                    if (l == INT64_MIN && r == -1) { fprintf(stderr, "[line %d] Runtime error: Integer overflow on division.\n", node->line); interp->had_error = true; return val_unit(); }
                     return val_int(l / r);
                 case TOK_PERCENT:
                     if (r == 0) { fprintf(stderr, "[line %d] Runtime error: Division by zero.\n", node->line); interp->had_error = true; return val_unit(); }
+                    if (l == INT64_MIN && r == -1) { return val_int(0); }
                     return val_int(l % r);
                 case TOK_LT:  return val_bool(l < r);
                 case TOK_GT:  return val_bool(l > r);
@@ -1243,7 +1273,7 @@ Value interp_exec(Interp *interp, Node *node) {
     case NODE_CALL: {
         Value *callee_ref = env_get(interp->current_env, node->as.call.fn_name);
         if (!callee_ref) {
-            fprintf(stderr, "[line %d] Runtime error: Undefined function '%s' (%d %d %d %d).\n", node->line, node->as.call.fn_name, node->as.call.fn_name[0], node->as.call.fn_name[1], node->as.call.fn_name[2], node->as.call.fn_name[3]);
+            fprintf(stderr, "[line %d] Runtime error: Undefined function '%s'.\n", node->line, node->as.call.fn_name);
             interp->had_error = true; return val_unit();
         }
         Value callee = val_clone(*callee_ref);
@@ -1388,20 +1418,20 @@ Value interp_exec(Interp *interp, Node *node) {
             fprintf(stderr, "[line %d] Runtime error: Index must be an integer.\n", node->line);
             interp->had_error = true; return val_unit();
         }
-        int i = (int)idx.as.int_val;
+        int64_t i_val = idx.as.int_val;
         if (arr.type == VAL_LIST) {
-            if (i < 0 || i >= arr.as.list->count) {
+            if (i_val < 0 || i_val >= arr.as.list->count) {
                 fprintf(stderr, "[line %d] Runtime error: Index out of bounds.\n", node->line);
                 interp->had_error = true; return val_unit();
             }
-            return val_clone(arr.as.list->items[i]);
+            return val_clone(arr.as.list->items[(size_t)i_val]);
         } else {
-            int len = strlen(arr.as.string_val);
-            if (i < 0 || i >= len) {
+            int64_t len = (int64_t)strlen(arr.as.string_val);
+            if (i_val < 0 || i_val >= len) {
                 fprintf(stderr, "[line %d] Runtime error: String index out of bounds.\n", node->line);
                 interp->had_error = true; return val_unit();
             }
-            char buf[2] = { arr.as.string_val[i], '\0' };
+            char buf[2] = { arr.as.string_val[(size_t)i_val], '\0' };
             return val_string(buf);
         }
     }

@@ -155,6 +155,15 @@ fn eval(node, env) {
                 if bn == "to_float" { return to_float(args[0]) }
                 if bn == "to_string" { return to_string(args[0]) }
                 if bn == "unwrap_or" { return unwrap_or(args[0], args[1]) }
+                                if bn == "map_err" {
+                    let res_val = args[0] let fval = args[1]
+                    if type_of(res_val) == "Result" {
+                        let is_err = match res_val { Ok(v) => false, Err(e) => true }
+                        if is_err { let e = match res_val { Ok(v) => None, Err(x) => x } return Err(call_fn(fval, [e])) }
+                        else { return res_val }
+                    }
+                    return res_val
+                }
                 if bn == "map" {
                     let opt = args[0] let fval = args[1]
                     if type_of(opt) == "Option" {

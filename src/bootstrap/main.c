@@ -12,8 +12,30 @@
  * Utility implementations
  * ============================================================ */
 
+void *qk_malloc(size_t size) {
+    if (size == 0) return NULL;
+    void *ptr = malloc(size);
+    if (!ptr) qk_fatal("Out of memory in qk_malloc");
+    return ptr;
+}
+
+void *qk_realloc(void *ptr, size_t size) {
+    if (size == 0) { free(ptr); return NULL; }
+    void *new_ptr = realloc(ptr, size);
+    if (!new_ptr) qk_fatal("Out of memory in qk_realloc");
+    return new_ptr;
+}
+
+void qk_free(void *ptr) {
+    if (ptr) free(ptr);
+}
+
+void qk_arena_reset(void) {}
+
 char *qk_strdup(const char *s) {
-    if (!s) return NULL;
+    if (!s) return qk_strdup("");
+
+    if (!s) s = "";
     size_t len = strlen(s);
     char *dup = (char *)malloc(len + 1);
     if (!dup) { fprintf(stderr, "Out of memory\n"); exit(1); }
@@ -22,7 +44,7 @@ char *qk_strdup(const char *s) {
 }
 
 char *qk_strndup(const char *s, int n) {
-    if (!s) return NULL;
+    if (!s) s = "";
     char *dup = (char *)malloc(n + 1);
     if (!dup) { fprintf(stderr, "Out of memory\n"); exit(1); }
     memcpy(dup, s, n);
@@ -79,7 +101,7 @@ static char *read_file(const char *path) {
  * ============================================================ */
 
 static void repl(void) {
-    printf("Quokka v0.5.5  --  \"If you can read it, you can know what it does.\"\n");
+    printf("Quokka v0.8.6  --  \"If you can read it, you can know what it does.\"\n");
     printf("Type expressions or statements. Ctrl+C to exit.\n\n");
 
     /* We keep one persistent interpreter across REPL lines

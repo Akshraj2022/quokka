@@ -360,6 +360,7 @@ Value val_list(void);
 
 const char *val_type_name(Value v);
 void val_print(Value v);
+void val_free(Value v);
 bool val_equal(Value a, Value b);
 Value val_clone(Value v);
 void list_push(Value *list, Value item);

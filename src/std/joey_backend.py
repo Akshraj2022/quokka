@@ -19,6 +19,8 @@ def run_job(config_path):
     # In a real implementation, this would import transformers, unsloth, torch, etc.
     
     for step in job:
+        if not isinstance(step, dict) or not step:
+            continue
         step_type = list(step.keys())[0]
         args = step[step_type]
         
