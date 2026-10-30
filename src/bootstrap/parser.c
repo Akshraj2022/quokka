@@ -611,7 +611,7 @@ static Node *statement(Parser *p) {
         // Since we don't have token peek, we parse expression.
         Node *expr = expression(p);
         if (match(p, TOK_ASSIGN)) {
-            if (expr->type == NODE_IDENT) {
+            if (expr && expr->type == NODE_IDENT) {
                 Node *val = expression(p);
                 Node *n = node_new(NODE_ASSIGN, expr->line);
                 n->as.assign.name = expr->as.name;
