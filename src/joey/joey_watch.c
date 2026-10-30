@@ -170,7 +170,7 @@ int joey_watch_main(void) {
                 
                 // Clear and draw
                 printf(ANSI_CLEAR);
-                printf(ANSI_BOLD ANSI_CYAN "🦦 Quokka Joey - LoRA Training Monitor\n" ANSI_RESET);
+                printf(ANSI_BOLD ANSI_CYAN "Quokka Joey - LoRA Training Monitor\n" ANSI_RESET);
                 printf("=========================================\n\n");
                 
                 int pct = total_steps > 0 ? (step * 100 / total_steps) : 0;
