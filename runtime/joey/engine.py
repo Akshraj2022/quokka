@@ -6,11 +6,10 @@ This is what the Quokka interpreter calls under the hood.
 import os
 import sys
 import json
+import socket
+import time
 
 from transformers import TrainerCallback
-import socket
-import json
-import time
 
 class QuokkaProgressCallback(TrainerCallback):
     def __init__(self):
@@ -45,7 +44,7 @@ class QuokkaProgressCallback(TrainerCallback):
             }
             try:
                 self.sock.sendall((json.dumps(event) + "\n").encode("utf-8"))
-            except:
+            except (socket.error, OSError):
                 pass
 
 def load_model(model_name, quantize=None):
