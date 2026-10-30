@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.0] - 2026-10-30 - Milestone Release
+
+### Summary
+Milestone v0.9.0 delivers comprehensive stability, security, memory management, and build infrastructure upgrades across all layers of the Quokka language and Joey AI/ML framework.
+
+### Highlights
+- **Zero Mojibake & Emojis**: Complete eradication of double-encoded UTF-8 artifacts and emojis across documentation, TUI monitors, and code.
+- **Robust Memory Management**: Introduction of `qk_malloc`/`qk_realloc`/`qk_free` with fatal out-of-memory protections, recursive `val_free()` destructors, and closure environment isolation.
+- **Mathematical Safety**: Hardware `SIGFPE` exception prevention on signed 64-bit integer overflow (`INT64_MIN / -1` and `INT64_MIN % -1`).
+- **Complete CLI Capabilities**: Native support for `quokka run <file>` command structure, auto-detecting test harness binaries, and robust fallback chains in `quokka.bat`.
+- **Parser & Type System**: Full 64-bit bounds checking, string escape character processing (`\n`, `\t`, `\r`, `\\`, `\"`), and monadic `Result` support in `and_then()`.
+- **GPU Safety**: Rank clamping and CUDA kernel error tracking for Joey LoRA tensor operations.
+- **Cross-Platform Tooling**: Unified build scripts and workflows across Windows, macOS (arm64/x86_64), and Linux.
+
 ## [0.8.9] - 2026-10-30
 
 ### Fixed
@@ -68,6 +82,20 @@
 - Added CUDA error checking following kernel launch and synchronization.
 
 # Changelog
+
+## [0.9.0] - 2026-10-30 - Milestone Release
+
+### Summary
+Milestone v0.9.0 delivers comprehensive stability, security, memory management, and build infrastructure upgrades across all layers of the Quokka language and Joey AI/ML framework.
+
+### Highlights
+- **Zero Mojibake & Emojis**: Complete eradication of double-encoded UTF-8 artifacts and emojis across documentation, TUI monitors, and code.
+- **Robust Memory Management**: Introduction of `qk_malloc`/`qk_realloc`/`qk_free` with fatal out-of-memory protections, recursive `val_free()` destructors, and closure environment isolation.
+- **Mathematical Safety**: Hardware `SIGFPE` exception prevention on signed 64-bit integer overflow (`INT64_MIN / -1` and `INT64_MIN % -1`).
+- **Complete CLI Capabilities**: Native support for `quokka run <file>` command structure, auto-detecting test harness binaries, and robust fallback chains in `quokka.bat`.
+- **Parser & Type System**: Full 64-bit bounds checking, string escape character processing (`\n`, `\t`, `\r`, `\\`, `\"`), and monadic `Result` support in `and_then()`.
+- **GPU Safety**: Rank clamping and CUDA kernel error tracking for Joey LoRA tensor operations.
+- **Cross-Platform Tooling**: Unified build scripts and workflows across Windows, macOS (arm64/x86_64), and Linux.
 
 ## [0.8.9] - 2026-10-30
 
