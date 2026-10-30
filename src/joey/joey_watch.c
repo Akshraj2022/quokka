@@ -77,7 +77,7 @@ int get_vram_mb() {
 // Very simple JSON string extraction
 double get_json_num(const char* json, const char* key) {
     char search[64];
-    sprintf(search, "\"%s\":", key);
+    snprintf(search, sizeof(search), "\"%s\":", key);
     const char* p = strstr(json, search);
     if (!p) return 0.0;
     p += strlen(search);
