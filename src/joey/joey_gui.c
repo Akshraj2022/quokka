@@ -26,6 +26,7 @@ LRESULT CALLBACK EditorProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 void GuiRunScript() {
     int len = GetWindowTextLength(hEditor);
     char *src = malloc(len + 1);
+    if (!src) return;
     GetWindowText(hEditor, src, len + 1);
     
     FILE *f = fopen("GUICHENOTIA_temp.qk", "wb");
@@ -113,6 +114,7 @@ void GuiOpenFile(HWND hwnd) {
             long len = ftell(f);
             fseek(f, 0, SEEK_SET);
             char *buf = malloc(len + 1);
+            if (!buf) { fclose(f); return; }
             fread(buf, 1, len, f);
             buf[len] = '\0';
             fclose(f);
@@ -153,6 +155,7 @@ void GuiSaveFile(HWND hwnd) {
     
     int len = GetWindowTextLength(hEditor);
     char *src = malloc(len + 1);
+    if (!src) return;
     GetWindowText(hEditor, src, len + 1);
     
     FILE *f = fopen(currentFile, "wb");
