@@ -72,25 +72,7 @@ static char *read_file(const char *path) {
  * Run source code
  * ============================================================ */
 
-static int run(const char *source) {
-    /* Parse */
-    Parser parser;
-    parser_init(&parser, source);
-    Node *program = parser_parse(&parser);
-
-    if (parser.had_error) {
-        return 1;
-    }
-
-    /* Interpret */
-    Interp interp;
-    interp_init(&interp);
-    Value eval_result = interp_exec(&interp, program);
-
-    int result = (interp.had_error || eval_result.type == VAL_ERR) ? 1 : 0;
-    interp_free(&interp);
-    return result;
-}
+/* run() removed - unused static function */
 
 /* ============================================================
  * REPL
