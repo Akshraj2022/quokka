@@ -201,6 +201,7 @@ void list_push(Value *list, Value item) {
  * ============================================================ */
 Env *env_new(Env *parent) {
     Env *env = malloc(sizeof(Env));
+    if (!env) qk_fatal("Out of memory allocating environment");
     env->parent   = parent;
     env->bindings = NULL;
     return env;
