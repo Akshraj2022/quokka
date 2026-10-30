@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.9.1] - 2026-10-30 - Comprehensive Hardening & Zero-Leak Release
+
+### Zero-Leak Memory Engine (Valgrind-Verified 0 Leaks)
+- **Complete AST Garbage Collection**: Implemented full recursive AST destructor `node_free()` and root tracking registry (`qk_ast_track`, `qk_ast_free_all`). Hooked AST destruction into arena resets, REPL executions, and program termination.
+- **Function Call Argument Leak Elimination**: Fixed double-cloning memory leaks in `call_value()` parameter binding.
+- **Pattern Match Binding Leak Elimination**: Fixed value leaks in `NODE_MATCH` arm bindings by properly freeing cloned subject values.
+- **Loop Iteration Leak Elimination**: Fixed double-cloning memory leaks in `for` loop iteration variable bindings.
+- **Destructor & Refcount Hardening**: Added reference counting to `QkList` and `Env`, differentiating closure snapshots from lexical scope chains to prevent double-frees.
+- **Intermediate Expression Cleanup**: Systematically reclaimed intermediate values in binary expressions, unary operations, string concatenations, variable assignments (`NODE_LET`, `NODE_ASSIGN`, `NODE_SHADOW`), list lookups, and block statements.
+- **Builtin Return Value Cleanup**: Fixed leaks in `builtin_capture_println()` and updated `builtin_list_set()` to free overwritten values.
+- **Parser Assignment Leak Fix**: Fixed statement expression node leak in `parser.c` assignment parsing.
+- **Verified 0 Leaks**: 100% clean Valgrind memory audits on Linux across all conformance suites and example programs (`0 bytes in 0 blocks`).
+
+### Cross-Platform Architecture & Portability (Linux, macOS, Windows)
+- **Hardware Architecture Detection**: Added `arch_name()` builtin supporting `x86_64`, `arm64`, `x86`, and `arm`.
+- **POSIX Conformance**: Added `_DEFAULT_SOURCE` and `_POSIX_C_SOURCE 200809L` headers across Joey native and monitor modules, resolving 64-bit pointer truncation warnings and segfaults on Linux and macOS.
+- **Compiler Compatibility**: Guarded MSVC `#pragma comment` directives to eliminate compiler warnings under MinGW GCC and Clang.
+- **Standardized Headers**: Replaced non-standard `<memory.h>` with standard `<string.h>` in `sha256.c`.
+- **Universal Build System**: Created universal `build.sh` (supporting GCC and Clang on Linux/macOS) and standard cross-platform `Makefile`.
+- **Cross-Platform Test Harness**: Created universal POSIX test harness `tests/run_tests.sh` and modernized `tests/run_differential.sh` and `tests/test_negative.sh`.
+
+### Runtime Stability & Stack Safety
+- **Call Stack Recursion Guard**: Implemented recursion depth tracking (`QK_MAX_CALL_DEPTH 2500`) in `call_value()`, transforming runaway recursive stack overflows into deterministic runtime errors.
+- **Lexer Escape Line Synchronization**: Fixed lexer source line desynchronization when string literals contain escaped newlines.
+- **String Quote Lexing Repair**: Fixed string literal parsing across `src/lexer.qka`, `src/quokka_interpreter.qka`, and `src/main.qka`.
+- **Terminal Cursor Signal Handling**: Installed `SIGINT` and `SIGTERM` signal handlers in `joey_watch.c` to guarantee terminal cursor restoration.
+- **Sparkline Visualization**: Fixed inverted sparkline scaling bug in Joey watch terminal monitor.
+- **Joey C/Python Robustness**: Added bounds checks to `ftell` and `fread` returns, NULL guards to `localtime`/`gmtime`, deduplicated CUDA error declarations, and protected Python backend argument unpacking.
+
+### CLI & Infrastructure
+- **Standard CLI Flags**: Added `--version` (`-v`) and `--help` (`-h`) flags to Quokka CLI.
+- **CI Workflows**: Modernized GitHub Actions workflows (`release.yml`, `linux-build.yml`, `macos-build.yml`, `macos-cross-build.yml`) with automated test runners and pthread linkage.
+
 ## [0.9.0] - 2026-10-30 - Milestone Release
 
 ### Summary
@@ -82,6 +115,39 @@ Milestone v0.9.0 delivers comprehensive stability, security, memory management, 
 - Added CUDA error checking following kernel launch and synchronization.
 
 # Changelog
+
+## [0.9.1] - 2026-10-30 - Comprehensive Hardening & Zero-Leak Release
+
+### Zero-Leak Memory Engine (Valgrind-Verified 0 Leaks)
+- **Complete AST Garbage Collection**: Implemented full recursive AST destructor `node_free()` and root tracking registry (`qk_ast_track`, `qk_ast_free_all`). Hooked AST destruction into arena resets, REPL executions, and program termination.
+- **Function Call Argument Leak Elimination**: Fixed double-cloning memory leaks in `call_value()` parameter binding.
+- **Pattern Match Binding Leak Elimination**: Fixed value leaks in `NODE_MATCH` arm bindings by properly freeing cloned subject values.
+- **Loop Iteration Leak Elimination**: Fixed double-cloning memory leaks in `for` loop iteration variable bindings.
+- **Destructor & Refcount Hardening**: Added reference counting to `QkList` and `Env`, differentiating closure snapshots from lexical scope chains to prevent double-frees.
+- **Intermediate Expression Cleanup**: Systematically reclaimed intermediate values in binary expressions, unary operations, string concatenations, variable assignments (`NODE_LET`, `NODE_ASSIGN`, `NODE_SHADOW`), list lookups, and block statements.
+- **Builtin Return Value Cleanup**: Fixed leaks in `builtin_capture_println()` and updated `builtin_list_set()` to free overwritten values.
+- **Parser Assignment Leak Fix**: Fixed statement expression node leak in `parser.c` assignment parsing.
+- **Verified 0 Leaks**: 100% clean Valgrind memory audits on Linux across all conformance suites and example programs (`0 bytes in 0 blocks`).
+
+### Cross-Platform Architecture & Portability (Linux, macOS, Windows)
+- **Hardware Architecture Detection**: Added `arch_name()` builtin supporting `x86_64`, `arm64`, `x86`, and `arm`.
+- **POSIX Conformance**: Added `_DEFAULT_SOURCE` and `_POSIX_C_SOURCE 200809L` headers across Joey native and monitor modules, resolving 64-bit pointer truncation warnings and segfaults on Linux and macOS.
+- **Compiler Compatibility**: Guarded MSVC `#pragma comment` directives to eliminate compiler warnings under MinGW GCC and Clang.
+- **Standardized Headers**: Replaced non-standard `<memory.h>` with standard `<string.h>` in `sha256.c`.
+- **Universal Build System**: Created universal `build.sh` (supporting GCC and Clang on Linux/macOS) and standard cross-platform `Makefile`.
+- **Cross-Platform Test Harness**: Created universal POSIX test harness `tests/run_tests.sh` and modernized `tests/run_differential.sh` and `tests/test_negative.sh`.
+
+### Runtime Stability & Stack Safety
+- **Call Stack Recursion Guard**: Implemented recursion depth tracking (`QK_MAX_CALL_DEPTH 2500`) in `call_value()`, transforming runaway recursive stack overflows into deterministic runtime errors.
+- **Lexer Escape Line Synchronization**: Fixed lexer source line desynchronization when string literals contain escaped newlines.
+- **String Quote Lexing Repair**: Fixed string literal parsing across `src/lexer.qka`, `src/quokka_interpreter.qka`, and `src/main.qka`.
+- **Terminal Cursor Signal Handling**: Installed `SIGINT` and `SIGTERM` signal handlers in `joey_watch.c` to guarantee terminal cursor restoration.
+- **Sparkline Visualization**: Fixed inverted sparkline scaling bug in Joey watch terminal monitor.
+- **Joey C/Python Robustness**: Added bounds checks to `ftell` and `fread` returns, NULL guards to `localtime`/`gmtime`, deduplicated CUDA error declarations, and protected Python backend argument unpacking.
+
+### CLI & Infrastructure
+- **Standard CLI Flags**: Added `--version` (`-v`) and `--help` (`-h`) flags to Quokka CLI.
+- **CI Workflows**: Modernized GitHub Actions workflows (`release.yml`, `linux-build.yml`, `macos-build.yml`, `macos-cross-build.yml`) with automated test runners and pthread linkage.
 
 ## [0.9.0] - 2026-10-30 - Milestone Release
 

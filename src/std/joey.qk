@@ -73,7 +73,9 @@ fn pipeline() {
                 if use_native {
                     result = joey_run_native(".joey_job.json")
                 } else {
-                    result = exec(["python", "joey_backend.py", ".joey_job.json"])
+                    let mut py = "python3"
+                    if os_name() == "windows" { py = "python" }
+                    result = exec([py, "src/std/joey_backend.py", ".joey_job.json"])
                 }
                 match result {
                     Ok(res) => {

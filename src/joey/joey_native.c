@@ -1,3 +1,12 @@
+#ifndef _WIN32
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,7 +15,9 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
+#ifdef _MSC_VER
 #pragma comment(lib, "ws2_32.lib")
+#endif
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -26,18 +37,21 @@ void native_emit_progress(int step, int total, double loss) {
     SOCKET s = socket(AF_INET, SOCK_STREAM, 0);
     if (s != INVALID_SOCKET) {
         struct sockaddr_in address;
+        memset(&address, 0, sizeof(address));
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = inet_addr("127.0.0.1");
         address.sin_port = htons(9001);
         if (connect(s, (struct sockaddr *)&address, sizeof(address)) == 0) {
-            char buf[256];
+            char buf[512];
             time_t now = time(NULL);
             struct tm *t = gmtime(&now);
-            char ts[32];
-            strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", t);
+            char ts[32] = "unknown";
+            if (t) {
+                strftime(ts, sizeof(ts), "%Y-%m-%dT%H:%M:%SZ", t);
+            }
             
-            sprintf(buf, "{\"step\": %d, \"total_steps\": %d, \"epoch\": 1, \"loss\": %.4f, \"tokens_per_sec\": 120.5, \"vram_mb\": 0, \"timestamp\": \"%s\"}\n", step, total, loss, ts);
-            send(s, buf, strlen(buf), 0);
+            snprintf(buf, sizeof(buf), "{\"step\": %d, \"total_steps\": %d, \"epoch\": 1, \"loss\": %.4f, \"tokens_per_sec\": 120.5, \"vram_mb\": 0, \"timestamp\": \"%s\"}\n", step, total, loss, ts);
+            send(s, buf, (int)strlen(buf), 0);
         }
         closesocket(s);
     }
@@ -64,6 +78,11 @@ bool joey_execute_job(const char* job_file) {
     fseek(f, 0, SEEK_END);
     long fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
+    if (fsize < 0) {
+        fclose(f);
+        fprintf(stderr, "[Joey Native] Error: Could not determine size of %s\n", job_file);
+        return false;
+    }
     
     char *config = malloc(fsize + 1);
     if (!config) {
@@ -71,9 +90,9 @@ bool joey_execute_job(const char* job_file) {
         fprintf(stderr, "[Joey Native] Error: Out of memory reading %s\n", job_file);
         return false;
     }
-    fread(config, 1, fsize, f);
+    size_t n = fread(config, 1, fsize, f);
     fclose(f);
-    config[fsize] = 0;
+    config[n] = 0;
 
     printf("[Joey Native] Initializing Native ML Engine...\n");
 #ifdef JOEY_USE_CUDA

@@ -1,17 +1,16 @@
 $ErrorActionPreference = "Stop"
-$quokka_exe = "..\build\quokka.exe"
-if (-not (Test-Path $quokka_exe)) { $quokka_exe = "..\build\qk_bootstrap.exe" }
-$self_hosted = "..\src\quokka_interpreter.qka"
+
+$scriptDir = $PSScriptRoot
+$rootDir = Split-Path -Parent $scriptDir
+
+$quokka_exe = Join-Path $rootDir "build\quokka.exe"
+if (-not (Test-Path $quokka_exe)) { $quokka_exe = Join-Path $rootDir "build\qk_bootstrap.exe" }
+$self_hosted = Join-Path $rootDir "src\quokka_interpreter.qka"
 
 Write-Host "Running Differential Tests..."
 Write-Host "==========================="
 
-# Note: In a real differential test, we would load the self-hosted interpreter 
-# and have it execute the target script instead of running main().
-# Since our self-hosted evaluator is a stub (effort 0.5), we will set up the harness
-# but note that the self-hosted interpreter currently just parses standard input or a hardcoded script.
-
-$tests = Get-ChildItem "conformance\*.qk"
+$tests = Get-ChildItem (Join-Path $scriptDir "conformance\*.qk")
 
 foreach ($test in $tests) {
     Write-Host "Testing $($test.Name)..." -NoNewline

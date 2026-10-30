@@ -59,10 +59,6 @@ extern "C" void joey_cuda_lora_forward(float* x, float* W, float* A, float* B, f
     if (err != cudaSuccess) {
         fprintf(stderr, "[Joey CUDA Error] Kernel launch failed: %s\n", cudaGetErrorString(err));
     }
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        fprintf(stderr, "[Joey CUDA Error] Kernel launch failed: %s\n", cudaGetErrorString(err));
-    }
     cudaDeviceSynchronize();
 }
 

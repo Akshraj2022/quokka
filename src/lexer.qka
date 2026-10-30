@@ -103,11 +103,11 @@ fn lex(source) {
             } else {
                 push(tokens, ["INT", unwrap_or(to_int(word), 0), line])
             }
-        } else if c == substring("\"\"", 1, 2) {
+        } else if c == "\"" {
             i = i + 1
             let mut start = i
-            while i < srclen and source[i] != substring("\"\"", 1, 2) {
-                if source[i] == substring("\"\"", 0, 1) and i + 1 < srclen {
+            while i < srclen and source[i] != "\"" {
+                if source[i] == "\\" and i + 1 < srclen {
                     i = i + 1 // skip escaped char
                 }
                 i = i + 1

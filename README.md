@@ -5,7 +5,7 @@
 
   <p><a href="https://quokka.space">Visit quokka.space</a></p>
 
-  [![Version](https://img.shields.io/badge/version-v0.9.0-blue.svg)](https://quokka.space)
+  [![Version](https://img.shields.io/badge/version-v0.9.1-blue.svg)](https://quokka.space)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://quokka.space)
 </div>
@@ -121,16 +121,27 @@ The Quokka repository is intentionally lightweight and verifiable. It contains e
 
 ## Building from Source
 
-If you wish to compile Quokka from scratch:
+Quokka provides cross-platform build scripts for Windows, Linux, and macOS:
 
-1. **Compile the Bootstrap**:
-   ```bash
-   gcc -std=c11 src/bootstrap/*.c -o build/qk_bootstrap.exe
-   ```
-2. **Re-bootstrap the Canonical Interpreter**:
-   ```bash
-   quokka bootstrap
-   ```
+* **Windows**:
+  ```cmd
+  build.bat
+  ```
+  Produces `build\quokka.exe`.
+
+* **Linux & macOS**:
+  ```bash
+  bash build.sh
+  ```
+  or using `make`:
+  ```bash
+  make
+  ```
+  Produces `build/quokka`.
+
+* **Running Tests**:
+  * Windows: `powershell -ExecutionPolicy Bypass -File tests\run_tests.ps1`
+  * Linux / macOS: `bash tests/run_tests.sh`
 
 ## Contributing
 Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) to learn about our development process, how to propose bugfixes and improvements, and how to build and test your changes.

@@ -60,6 +60,153 @@ Node *node_new(NodeType type, int line) {
     return n;
 }
 
+void node_free(Node *node) {
+    if (!node) return;
+    switch (node->type) {
+        case NODE_STRING_LIT:
+            if (node->as.string_val) free(node->as.string_val);
+            break;
+        case NODE_IDENT:
+            if (node->as.name) free(node->as.name);
+            break;
+        case NODE_UNARY:
+            node_free(node->as.unary.operand);
+            break;
+        case NODE_BINARY:
+            node_free(node->as.binary.left);
+            node_free(node->as.binary.right);
+            break;
+        case NODE_LET:
+            if (node->as.let_bind.name) free(node->as.let_bind.name);
+            if (node->as.let_bind.type_ann) free(node->as.let_bind.type_ann);
+            node_free(node->as.let_bind.value);
+            break;
+        case NODE_ASSIGN:
+            if (node->as.assign.name) free(node->as.assign.name);
+            node_free(node->as.assign.value);
+            break;
+        case NODE_SHADOW:
+            if (node->as.shadow.name) free(node->as.shadow.name);
+            node_free(node->as.shadow.value);
+            break;
+        case NODE_IF:
+            node_free(node->as.if_expr.cond);
+            node_free(node->as.if_expr.then_b);
+            node_free(node->as.if_expr.else_b);
+            break;
+        case NODE_MATCH:
+            node_free(node->as.match_expr.subject);
+            for (int i = 0; i < node->as.match_expr.arm_count; i++) {
+                if (node->as.match_expr.arms[i].pattern) free(node->as.match_expr.arms[i].pattern);
+                if (node->as.match_expr.arms[i].binding) free(node->as.match_expr.arms[i].binding);
+                node_free(node->as.match_expr.arms[i].body);
+            }
+            if (node->as.match_expr.arms) free(node->as.match_expr.arms);
+            break;
+        case NODE_BLOCK:
+            for (int i = 0; i < node->as.block.stmts.count; i++) {
+                node_free(node->as.block.stmts.items[i]);
+            }
+            if (node->as.block.stmts.items) free(node->as.block.stmts.items);
+            break;
+        case NODE_FN_DEF:
+            if (node->as.fn_def.name) free(node->as.fn_def.name);
+            for (int i = 0; i < node->as.fn_def.params.count; i++) {
+                if (node->as.fn_def.params.items[i].name) free(node->as.fn_def.params.items[i].name);
+                if (node->as.fn_def.params.items[i].type_name) free(node->as.fn_def.params.items[i].type_name);
+            }
+            if (node->as.fn_def.params.items) free(node->as.fn_def.params.items);
+            if (node->as.fn_def.ret_type) free(node->as.fn_def.ret_type);
+            node_free(node->as.fn_def.body);
+            break;
+        case NODE_LAMBDA:
+            for (int i = 0; i < node->as.lambda.params.count; i++) {
+                if (node->as.lambda.params.items[i].name) free(node->as.lambda.params.items[i].name);
+                if (node->as.lambda.params.items[i].type_name) free(node->as.lambda.params.items[i].type_name);
+            }
+            if (node->as.lambda.params.items) free(node->as.lambda.params.items);
+            if (node->as.lambda.ret_type) free(node->as.lambda.ret_type);
+            node_free(node->as.lambda.body);
+            break;
+        case NODE_CALL:
+            if (node->as.call.fn_name) free(node->as.call.fn_name);
+            for (int i = 0; i < node->as.call.args.count; i++) {
+                node_free(node->as.call.args.items[i]);
+            }
+            if (node->as.call.args.items) free(node->as.call.args.items);
+            break;
+        case NODE_RETURN:
+            node_free(node->as.ret.value);
+            break;
+        case NODE_WHILE:
+            node_free(node->as.while_loop.cond);
+            node_free(node->as.while_loop.body);
+            break;
+        case NODE_FOR:
+            if (node->as.for_loop.var_name) free(node->as.for_loop.var_name);
+            node_free(node->as.for_loop.iter);
+            node_free(node->as.for_loop.body);
+            break;
+        case NODE_SOME:
+            node_free(node->as.some_val.value);
+            break;
+        case NODE_OK:
+            node_free(node->as.ok_val.value);
+            break;
+        case NODE_ERR:
+            node_free(node->as.err_val.value);
+            break;
+        case NODE_UNWRAP:
+            node_free(node->as.unwrap.operand);
+            break;
+        case NODE_LIST_LIT:
+            for (int i = 0; i < node->as.list_lit.elements.count; i++) {
+                node_free(node->as.list_lit.elements.items[i]);
+            }
+            if (node->as.list_lit.elements.items) free(node->as.list_lit.elements.items);
+            break;
+        case NODE_INDEX:
+            node_free(node->as.index.array);
+            node_free(node->as.index.index);
+            break;
+        case NODE_PROGRAM:
+            for (int i = 0; i < node->as.program.count; i++) {
+                node_free(node->as.program.items[i]);
+            }
+            if (node->as.program.items) free(node->as.program.items);
+            break;
+        default:
+            break;
+    }
+    free(node);
+}
+
+static Node **tracked_roots = NULL;
+static int tracked_roots_count = 0;
+static int tracked_roots_cap = 0;
+
+void qk_ast_track(Node *node) {
+    if (!node) return;
+    if (tracked_roots_count >= tracked_roots_cap) {
+        tracked_roots_cap = tracked_roots_cap < 8 ? 8 : tracked_roots_cap * 2;
+        tracked_roots = realloc(tracked_roots, sizeof(Node*) * tracked_roots_cap);
+        if (!tracked_roots) qk_fatal("Out of memory tracking AST roots");
+    }
+    tracked_roots[tracked_roots_count++] = node;
+}
+
+void qk_ast_free_all(void) {
+    for (int i = 0; i < tracked_roots_count; i++) {
+        node_free(tracked_roots[i]);
+    }
+    if (tracked_roots) {
+        free(tracked_roots);
+        tracked_roots = NULL;
+    }
+    tracked_roots_count = 0;
+    tracked_roots_cap = 0;
+}
+
 void parser_init(Parser *p, const char *source) {
     lexer_init(&p->lexer, source);
     p->had_error = false;
@@ -629,7 +776,7 @@ static Node *statement(Parser *p) {
                 Node *n = node_new(NODE_ASSIGN, expr->line);
                 n->as.assign.name = expr->as.name;
                 n->as.assign.value = val;
-                // Leak expr node memory, but that's typical for simple ast trees without manual free functions
+                free(expr);
                 return n;
             } else {
                 error_at(p, &p->previous, "Invalid assignment target");
@@ -646,6 +793,7 @@ Node *parser_parse(Parser *p) {
     advance(p);
     Node *prog = node_new(NODE_PROGRAM, 1);
     nodelist_init(&prog->as.program);
+    qk_ast_track(prog);
     
     while (!check(p, TOK_EOF)) {
         Node *stmt = statement(p);

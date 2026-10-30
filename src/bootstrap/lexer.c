@@ -154,7 +154,10 @@ static Token scan_string(Lexer *lex) {
         if (peek(lex) == '\n') lex->line++;
         if (peek(lex) == '\\') {
             advance(lex); /* skip '\\' */
-            if (!at_end(lex)) advance(lex); /* skip escaped char */
+            if (!at_end(lex)) {
+                if (peek(lex) == '\n') lex->line++;
+                advance(lex);
+            }
             continue;
         }
         advance(lex);

@@ -22,8 +22,8 @@ fn main() {
         let source_res = file_read(qk_src)
         match source_res {
             Ok(source) => {
-                let quote = substring("\"\"", 1, 2)
-                let backslash = substring("\"\"", 0, 1)
+                let quote = "\""
+                let backslash = "\\"
                 let nl_str = "
 "
                 let literal_nl = substring(nl_str, 0, 1)

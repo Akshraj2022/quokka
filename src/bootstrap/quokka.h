@@ -274,6 +274,9 @@ struct Node {
 };
 
 Node *node_new(NodeType type, int line);
+void node_free(Node *node);
+void qk_ast_track(Node *node);
+void qk_ast_free_all(void);
 void nodelist_init(NodeList *list);
 void nodelist_push(NodeList *list, Node *node);
 void paramlist_init(ParamList *list);
@@ -328,6 +331,7 @@ typedef struct {
     Value *items;
     int count;
     int cap;
+    int refcount;
 } QkList;
 
 struct Value {
@@ -378,6 +382,8 @@ typedef struct Binding {
 struct Env {
     Binding *bindings;
     Env *parent;
+    int refcount;
+    bool is_snapshot;
 };
 
 Env  *env_new(Env *parent);
@@ -390,6 +396,8 @@ void  env_free(Env *env);
 /* ============================================================
  * Interpreter
  * ============================================================ */
+#define QK_MAX_CALL_DEPTH 2500
+
 typedef struct {
     Env *globals;
     Env *current_env;
@@ -398,6 +406,7 @@ typedef struct {
     Value return_val;
     bool breaking;
     bool continuing;
+    int call_depth;
 } Interp;
 
 void  interp_init(Interp *interp);

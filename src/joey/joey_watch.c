@@ -1,13 +1,25 @@
+#ifndef _WIN32
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200809L
+#endif
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <time.h>
+#include <signal.h>
 
 #ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
+#ifdef _MSC_VER
 #pragma comment(lib, "ws2_32.lib")
+#endif
 #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
 #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
 #endif
@@ -54,6 +66,12 @@ void cleanup() {
 #endif
 }
 
+static void sig_handler(int sig) {
+    (void)sig;
+    cleanup();
+    exit(0);
+}
+
 int get_vram_mb() {
 #ifdef _WIN32
     FILE* fp = _popen("nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits 2>NUL", "r");
@@ -89,9 +107,14 @@ void save_history(double final_loss, double duration) {
     if (f) {
         time_t now = time(NULL);
         struct tm *t = localtime(&now);
-        fprintf(f, "[%04d-%02d-%02d %02d:%02d:%02d] Job Finished | Duration: %.1fs | Final Loss: %.4f\n",
-            t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec,
-            duration, final_loss);
+        if (t) {
+            fprintf(f, "[%04d-%02d-%02d %02d:%02d:%02d] Job Finished | Duration: %.1fs | Final Loss: %.4f\n",
+                t->tm_year + 1900, t->tm_mon + 1, t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec,
+                duration, final_loss);
+        } else {
+            fprintf(f, "[Unknown Time] Job Finished | Duration: %.1fs | Final Loss: %.4f\n",
+                duration, final_loss);
+        }
         fclose(f);
     }
 }
@@ -100,6 +123,10 @@ int joey_watch_main(void) {
     enable_ansi();
     printf("%s", ANSI_HIDE_CURSOR);
     atexit(cleanup);
+    signal(SIGINT, sig_handler);
+#ifdef SIGTERM
+    signal(SIGTERM, sig_handler);
+#endif
     
 #ifdef _WIN32
     WSADATA wsaData;
@@ -109,6 +136,7 @@ int joey_watch_main(void) {
     SOCKET server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == INVALID_SOCKET) {
         printf("Failed to create socket.\n");
+        cleanup();
         return 1;
     }
 
@@ -116,6 +144,7 @@ int joey_watch_main(void) {
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
 
     struct sockaddr_in address;
+    memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = inet_addr("127.0.0.1");
     address.sin_port = htons(9001);
@@ -130,6 +159,7 @@ int joey_watch_main(void) {
     if (listen(server_fd, 1) == SOCKET_ERROR) {
         printf("Listen failed.\n");
         closesocket(server_fd);
+        cleanup();
         return 1;
     }
 
@@ -140,6 +170,7 @@ int joey_watch_main(void) {
     if (client_fd == INVALID_SOCKET) {
         printf("Accept failed.\n");
         closesocket(server_fd);
+        cleanup();
         return 1;
     }
 
@@ -191,10 +222,10 @@ int joey_watch_main(void) {
                     if (i < history_idx) {
                         int idx = (history_idx <= 20) ? i : ((history_idx + i) % 20);
                         double val = loss_history[idx];
-                        int bar = (int)(val * 3); // Naive scaling
+                        int bar = (int)(val * 3);
                         if (bar < 0) bar = 0;
                         if (bar > 7) bar = 7;
-                        printf("%s", SPARK_CHARS[7 - bar]); // Invert so lower loss is lower bar, or whatever visual makes sense
+                        printf("%s", SPARK_CHARS[bar]);
                     }
                 }
                 printf("\n");

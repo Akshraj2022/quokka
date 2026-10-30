@@ -30,7 +30,9 @@ void qk_free(void *ptr) {
     if (ptr) free(ptr);
 }
 
-void qk_arena_reset(void) {}
+void qk_arena_reset(void) {
+    qk_ast_free_all();
+}
 
 char *qk_strdup(const char *s) {
     if (!s) return qk_strdup("");
@@ -106,7 +108,7 @@ static char *read_file(const char *path) {
  * ============================================================ */
 
 static void repl(void) {
-    printf("Quokka v0.9.0  --  \"If you can read it, you can know what it does.\"\n");
+    printf("Quokka v0.9.1  --  \"If you can read it, you can know what it does.\"\n");
     printf("Type expressions or statements. Ctrl+C to exit.\n\n");
 
     /* We keep one persistent interpreter across REPL lines
@@ -145,6 +147,7 @@ static void repl(void) {
     }
 
     interp_free(&interp);
+    qk_ast_free_all();
 }
 
 /* ============================================================
@@ -152,10 +155,26 @@ static void repl(void) {
  * ============================================================ */
 
 int main(int argc, char *argv[]) {
-
-    if (argc >= 2 && (strcmp(argv[1], "watch") == 0 || (argc >= 3 && strcmp(argv[1], "joey") == 0 && strcmp(argv[2], "status") == 0))) {
-        extern int joey_watch_main(void);
-        return joey_watch_main();
+    if (argc >= 2) {
+        if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
+            printf("Quokka v0.9.1\n");
+            return 0;
+        }
+        if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
+            printf("Quokka Programming Language v0.9.1\n\n");
+            printf("Usage:\n");
+            printf("  quokka                     Start interactive REPL\n");
+            printf("  quokka <file.qk>           Execute a script\n");
+            printf("  quokka run <file.qk>       Execute a script\n");
+            printf("  quokka watch               Start Joey training monitor\n");
+            printf("  quokka --version, -v       Show version\n");
+            printf("  quokka --help, -h          Show this help message\n");
+            return 0;
+        }
+        if (strcmp(argv[1], "watch") == 0 || (argc >= 3 && strcmp(argv[1], "joey") == 0 && strcmp(argv[2], "status") == 0)) {
+            extern int joey_watch_main(void);
+            return joey_watch_main();
+        }
     }
     if (argc == 1) {
         repl();
@@ -179,12 +198,14 @@ int main(int argc, char *argv[]) {
 
     char *source = read_file(argv[script_idx]);
     if (!source) {
+        val_free(sys_args);
         return 1;
     }
 
     Interp interp;
     interp_init(&interp);
     env_define(interp.globals, "sys_args", sys_args, true);
+    val_free(sys_args);
 
     /* Parse */
     Parser parser;
@@ -194,6 +215,7 @@ int main(int argc, char *argv[]) {
     if (parser.had_error) {
         free(source);
         interp_free(&interp);
+        qk_ast_free_all();
         return 1;
     }
 
@@ -201,7 +223,9 @@ int main(int argc, char *argv[]) {
     Value eval_result = interp_exec(&interp, program);
 
     int result = (interp.had_error || eval_result.type == VAL_ERR) ? 1 : 0;
+    val_free(eval_result);
     free(source);
     interp_free(&interp);
+    qk_ast_free_all();
     return result;
 }

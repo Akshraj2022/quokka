@@ -8,6 +8,12 @@ static Value call_value(Value callee, Value *args, int argc, int line) {
     if (callee.type == VAL_BUILTIN) {
         return callee.as.builtin(args, argc, line);
     } else if (callee.type == VAL_FN) {
+        if (current_interp->call_depth >= QK_MAX_CALL_DEPTH) {
+            fprintf(stderr, "[line %d] Runtime error: Maximum call stack depth exceeded.\n", line);
+            current_interp->had_error = true;
+            return val_unit();
+        }
+        current_interp->call_depth++;
         QkFunction *fn = &callee.as.fn;
         if (argc != fn->params.count) {
             fprintf(stderr, "[line %d] Runtime error: Expected %d arguments but got %d.\n",
@@ -18,7 +24,7 @@ static Value call_value(Value callee, Value *args, int argc, int line) {
         /* Lexical scoping: new env's parent is the closure env, NOT the call-site env */
         Env *call_env = env_new(fn->closure_env);
         for (int i = 0; i < argc; i++) {
-            env_define(call_env, fn->params.items[i].name, val_clone(args[i]), false);
+            env_define(call_env, fn->params.items[i].name, args[i], false);
         }
         Env *prev_env = current_interp->current_env;
         current_interp->current_env = call_env;
@@ -36,6 +42,7 @@ static Value call_value(Value callee, Value *args, int argc, int line) {
         current_interp->return_val = prev_ret_val;
         current_interp->current_env = prev_env;
         env_free(call_env);
+        current_interp->call_depth--;
         return result;
     } else {
         fprintf(stderr, "[line %d] Runtime error: Not a function.\n", line);
@@ -90,6 +97,7 @@ Value val_list(void) {
     val.as.list->items = NULL;
     val.as.list->count = 0;
     val.as.list->cap   = 0;
+    val.as.list->refcount = 1;
     return val;
 }
 
@@ -123,6 +131,24 @@ void val_free(Value v) {
         case VAL_OK:
         case VAL_ERR:
             if (v.as.inner) { val_free(*v.as.inner); free(v.as.inner); }
+            break;
+        case VAL_FN:
+            if (v.as.fn.name) { free(v.as.fn.name); }
+            if (v.as.fn.closure_env && !v.as.fn.name) {
+                env_free(v.as.fn.closure_env);
+            }
+            break;
+        case VAL_LIST:
+            if (v.as.list) {
+                v.as.list->refcount--;
+                if (v.as.list->refcount <= 0) {
+                    for (int i = 0; i < v.as.list->count; i++) {
+                        val_free(v.as.list->items[i]);
+                    }
+                    if (v.as.list->items) free(v.as.list->items);
+                    free(v.as.list);
+                }
+            }
             break;
         default:
             break;
@@ -192,10 +218,13 @@ Value val_clone(Value v) {
         case VAL_FN: {
             Value nv; nv.type = VAL_FN; nv.as.fn = v.as.fn;
             nv.as.fn.name = v.as.fn.name ? qk_strdup(v.as.fn.name) : NULL;
-            /* Share closure env pointer — avoid infinite deep-copy */
+            if (v.as.fn.closure_env && !v.as.fn.name) {
+                v.as.fn.closure_env->refcount++;
+            }
             return nv;
         }
         case VAL_LIST:
+            if (v.as.list) v.as.list->refcount++;
             return v;
         default: return v;
     }
@@ -220,8 +249,10 @@ void list_push(Value *list, Value item) {
 Env *env_new(Env *parent) {
     Env *env = malloc(sizeof(Env));
     if (!env) qk_fatal("Out of memory allocating environment");
-    env->parent   = parent;
-    env->bindings = NULL;
+    env->parent      = parent;
+    env->bindings    = NULL;
+    env->refcount    = 1;
+    env->is_snapshot = false;
     return env;
 }
 
@@ -231,6 +262,7 @@ void env_define(Env *env, const char *name, Value val, bool is_mut) {
     while (curr) {
         if (strcmp(curr->name, name) == 0) {
             /* Shadow: allow re-definition in same scope (used by NODE_SHADOW) */
+            val_free(curr->value);
             curr->value  = val_clone(val);
             curr->is_mut = is_mut;
             return;
@@ -263,6 +295,7 @@ bool env_set(Env *env, const char *name, Value val) {
         while (curr) {
             if (strcmp(curr->name, name) == 0) {
                 if (!curr->is_mut) return false;
+                val_free(curr->value);
                 curr->value = val_clone(val);
                 return true;
             }
@@ -276,8 +309,10 @@ bool env_set(Env *env, const char *name, Value val) {
 Env *env_snapshot(Env *env) {
     if (!env) return NULL;
     Env *new_env = qk_malloc(sizeof(Env));
-    new_env->parent   = env_snapshot(env->parent);
-    new_env->bindings = NULL;
+    new_env->parent      = env_snapshot(env->parent);
+    new_env->bindings    = NULL;
+    new_env->refcount    = 1;
+    new_env->is_snapshot = true;
 
     Binding *curr = env->bindings;
     Binding *last = NULL;
@@ -297,6 +332,8 @@ Env *env_snapshot(Env *env) {
 
 void env_free(Env *env) {
     if (!env) return;
+    env->refcount--;
+    if (env->refcount > 0) return;
     Binding *curr = env->bindings;
     while (curr) {
         Binding *next = curr->next;
@@ -304,6 +341,9 @@ void env_free(Env *env) {
         val_free(curr->value);
         free(curr);
         curr = next;
+    }
+    if (env->is_snapshot && env->parent) {
+        env_free(env->parent);
     }
     free(env);
 }
@@ -387,13 +427,17 @@ static Value builtin_map(Value *args, int argc, int line) {
     if (args[0].type == VAL_SOME) {
         Value inner = *args[0].as.inner;
         Value res = call_value(args[1], &inner, 1, line);
-        return val_some(res);
+        Value out = val_some(res);
+        val_free(res);
+        return out;
     } else if (args[0].type == VAL_NONE) {
         return val_none();
     } else if (args[0].type == VAL_OK) {
         Value inner = *args[0].as.inner;
         Value res = call_value(args[1], &inner, 1, line);
-        return val_ok(res);
+        Value out = val_ok(res);
+        val_free(res);
+        return out;
     } else if (args[0].type == VAL_ERR) {
         return val_clone(args[0]);
     }
@@ -421,7 +465,9 @@ static Value builtin_map_err(Value *args, int argc, int line) {
     if (args[0].type == VAL_ERR) {
         Value inner = *args[0].as.inner;
         Value res = call_value(args[1], &inner, 1, line);
-        return val_err(res);
+        Value out = val_err(res);
+        val_free(res);
+        return out;
     } else if (args[0].type == VAL_OK) {
         return val_clone(args[0]);
     }
@@ -485,9 +531,9 @@ static Value builtin_file_read(Value *args, int argc, int line) {
     if (fsize < 0) { fclose(f); return val_err(val_string("Invalid file size")); }
     char *string = malloc(fsize + 1);
     if (!string) { fclose(f); return val_err(val_string("Out of memory reading file")); }
-    if (fsize > 0) fread(string, fsize, 1, f);
+    size_t nread = (fsize > 0) ? fread(string, 1, fsize, f) : 0;
     fclose(f);
-    string[fsize] = 0;
+    string[nread] = 0;
     Value res = val_string(string);
     free(string);
     return val_ok(res);
@@ -550,8 +596,10 @@ static Value builtin_exec(Value *args, int argc, int line) {
         long fsize = ftell(f);
         fseek(f, 0, SEEK_SET);
         out_str = malloc(fsize + 1);
-        if (fsize > 0) fread(out_str, fsize, 1, f);
-        out_str[fsize] = 0;
+        if (out_str) {
+            size_t n = (fsize > 0) ? fread(out_str, 1, fsize, f) : 0;
+            out_str[n] = 0;
+        }
         fclose(f);
     }
     
@@ -562,8 +610,10 @@ static Value builtin_exec(Value *args, int argc, int line) {
         long fsize = ftell(ferr);
         fseek(ferr, 0, SEEK_SET);
         err_str = malloc(fsize + 1);
-        if (fsize > 0) fread(err_str, fsize, 1, ferr);
-        err_str[fsize] = 0;
+        if (err_str) {
+            size_t n = (fsize > 0) ? fread(err_str, 1, fsize, ferr) : 0;
+            err_str[n] = 0;
+        }
         fclose(ferr);
     }
 
@@ -594,6 +644,7 @@ static Value builtin_list_set(Value *args, int argc, int line) {
         return val_unit();
     int idx = (int)args[1].as.int_val;
     if (idx >= 0 && idx < args[0].as.list->count) {
+        val_free(args[0].as.list->items[idx]);
         args[0].as.list->items[idx] = val_clone(args[2]);
     }
     return val_unit();
@@ -924,6 +975,7 @@ static Value builtin_capture_println(Value *args, int argc, int line) {
         if (s.type == VAL_STRING) {
             strncat(captured_output, s.as.string_val, sizeof(captured_output) - strlen(captured_output) - 1);
         }
+        val_free(s);
     }
     strncat(captured_output, "\n", sizeof(captured_output) - strlen(captured_output) - 1);
     return val_unit();
@@ -956,11 +1008,30 @@ static Value builtin_os_name(Value *args, int argc, int line) {
 #endif
 }
 
+static Value builtin_arch_name(Value *args, int argc, int line) {
+    if (argc != 0) {
+        fprintf(stderr, "[line %d] Runtime error: arch_name expects 0 arguments\n", line);
+        return val_unit();
+    }
+#if defined(__x86_64__) || defined(_M_X64)
+    return val_string("x86_64");
+#elif defined(__i386__) || defined(_M_IX86)
+    return val_string("x86");
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    return val_string("arm64");
+#elif defined(__arm__) || defined(_M_ARM)
+    return val_string("arm");
+#else
+    return val_string("unknown");
+#endif
+}
+
 /* ============================================================
  * Interpreter
  * ============================================================ */
 void interp_register_builtins(Interp *interp) {
     env_define(interp->globals, "os_name",    val_builtin(builtin_os_name),   false);
+    env_define(interp->globals, "arch_name",  val_builtin(builtin_arch_name), false);
     env_define(interp->globals, "print",      val_builtin(builtin_print),     false);
     env_define(interp->globals, "println",    val_builtin(builtin_println),   false);
     env_define(interp->globals, "to_string",  val_builtin(builtin_to_string), false);
@@ -1003,13 +1074,20 @@ void interp_init(Interp *interp) {
     interp->return_val  = val_unit();
     interp->breaking    = false;
     interp->continuing  = false;
+    interp->call_depth  = 0;
     current_interp = interp;
     interp_register_builtins(interp);
 }
 
 void interp_free(Interp *interp) {
-    /* Don't free globals in REPL mode — only on full shutdown */
-    (void)interp;
+    if (!interp) return;
+    val_free(interp->return_val);
+    interp->return_val = val_unit();
+    if (interp->globals) {
+        env_free(interp->globals);
+        interp->globals = NULL;
+    }
+    interp->current_env = NULL;
 }
 
 /* ---- The main evaluation function ---- */
@@ -1093,8 +1171,8 @@ Value interp_exec(Interp *interp, Node *node) {
         if (interp->had_error) return val_unit();
 
         /* Equality — works on any type via structural comparison */
-        if (node->as.binary.op == TOK_EQ)  return val_bool(val_equal(left, right));
-        if (node->as.binary.op == TOK_NEQ) return val_bool(!val_equal(left, right));
+        if (node->as.binary.op == TOK_EQ)  { bool eq = val_equal(left, right); val_free(left); val_free(right); return val_bool(eq); }
+        if (node->as.binary.op == TOK_NEQ) { bool eq = val_equal(left, right); val_free(left); val_free(right); return val_bool(!eq); }
 
         /* String concatenation: ++ */
         if (node->as.binary.op == TOK_CONCAT) {
@@ -1106,9 +1184,13 @@ Value interp_exec(Interp *interp, Node *node) {
                 memcpy(buf, left.as.string_val, len_l);
                 memcpy(buf + len_l, right.as.string_val, len_r);
                 buf[len] = '\0';
+                val_free(left);
+                val_free(right);
                 Value v; v.type = VAL_STRING; v.as.string_val = buf;
                 return v;
             }
+            val_free(left);
+            val_free(right);
             fprintf(stderr, "[line %d] Runtime error: '++' requires String operands (use to_string() to convert).\n", node->line);
             interp->had_error = true; return val_unit();
         }
@@ -1117,55 +1199,66 @@ Value interp_exec(Interp *interp, Node *node) {
         if (left.type != right.type || (left.type != VAL_INT && left.type != VAL_FLOAT)) {
             fprintf(stderr, "[line %d] Runtime error: Numeric operations require same numeric type (got %s and %s).\n",
                     node->line, val_type_name(left), val_type_name(right));
-            interp->had_error = true; return val_unit();
+            interp->had_error = true;
+            val_free(left);
+            val_free(right);
+            return val_unit();
         }
 
+        Value bin_res = val_unit();
         if (left.type == VAL_INT) {
             int64_t l = left.as.int_val, r = right.as.int_val;
             switch (node->as.binary.op) {
-                case TOK_PLUS:  return val_int(l + r);
-                case TOK_MINUS: return val_int(l - r);
-                case TOK_STAR:  return val_int(l * r);
+                case TOK_PLUS:  bin_res = val_int(l + r); break;
+                case TOK_MINUS: bin_res = val_int(l - r); break;
+                case TOK_STAR:  bin_res = val_int(l * r); break;
                 case TOK_SLASH:
-                    if (r == 0) { fprintf(stderr, "[line %d] Runtime error: Division by zero.\n", node->line); interp->had_error = true; return val_unit(); }
-                    if (l == INT64_MIN && r == -1) { fprintf(stderr, "[line %d] Runtime error: Integer overflow on division.\n", node->line); interp->had_error = true; return val_unit(); }
-                    return val_int(l / r);
+                    if (r == 0) { fprintf(stderr, "[line %d] Runtime error: Division by zero.\n", node->line); interp->had_error = true; }
+                    else if (l == INT64_MIN && r == -1) { fprintf(stderr, "[line %d] Runtime error: Integer overflow on division.\n", node->line); interp->had_error = true; }
+                    else { bin_res = val_int(l / r); }
+                    break;
                 case TOK_PERCENT:
-                    if (r == 0) { fprintf(stderr, "[line %d] Runtime error: Division by zero.\n", node->line); interp->had_error = true; return val_unit(); }
-                    if (l == INT64_MIN && r == -1) { return val_int(0); }
-                    return val_int(l % r);
-                case TOK_LT:  return val_bool(l < r);
-                case TOK_GT:  return val_bool(l > r);
-                case TOK_LEQ: return val_bool(l <= r);
-                case TOK_GEQ: return val_bool(l >= r);
+                    if (r == 0) { fprintf(stderr, "[line %d] Runtime error: Division by zero.\n", node->line); interp->had_error = true; }
+                    else if (l == INT64_MIN && r == -1) { bin_res = val_int(0); }
+                    else { bin_res = val_int(l % r); }
+                    break;
+                case TOK_LT:  bin_res = val_bool(l < r); break;
+                case TOK_GT:  bin_res = val_bool(l > r); break;
+                case TOK_LEQ: bin_res = val_bool(l <= r); break;
+                case TOK_GEQ: bin_res = val_bool(l >= r); break;
                 default: break;
             }
         } else {
             double l = left.as.float_val, r = right.as.float_val;
             switch (node->as.binary.op) {
-                case TOK_PLUS:  return val_float(l + r);
-                case TOK_MINUS: return val_float(l - r);
-                case TOK_STAR:  return val_float(l * r);
+                case TOK_PLUS:  bin_res = val_float(l + r); break;
+                case TOK_MINUS: bin_res = val_float(l - r); break;
+                case TOK_STAR:  bin_res = val_float(l * r); break;
                 case TOK_SLASH:
-                    if (r == 0.0) { fprintf(stderr, "[line %d] Runtime error: Division by zero.\n", node->line); interp->had_error = true; return val_unit(); }
-                    return val_float(l / r);
+                    if (r == 0.0) { fprintf(stderr, "[line %d] Runtime error: Division by zero.\n", node->line); interp->had_error = true; }
+                    else { bin_res = val_float(l / r); }
+                    break;
                 case TOK_PERCENT:
                     fprintf(stderr, "[line %d] Runtime error: '%%' not supported on Float.\n", node->line);
-                    interp->had_error = true; return val_unit();
-                case TOK_LT:  return val_bool(l < r);
-                case TOK_GT:  return val_bool(l > r);
-                case TOK_LEQ: return val_bool(l <= r);
-                case TOK_GEQ: return val_bool(l >= r);
+                    interp->had_error = true;
+                    break;
+                case TOK_LT:  bin_res = val_bool(l < r); break;
+                case TOK_GT:  bin_res = val_bool(l > r); break;
+                case TOK_LEQ: bin_res = val_bool(l <= r); break;
+                case TOK_GEQ: bin_res = val_bool(l >= r); break;
                 default: break;
             }
         }
-        return val_unit();
+        val_free(left);
+        val_free(right);
+        return bin_res;
     }
 
     case NODE_LET: {
         Value val = interp_exec(interp, node->as.let_bind.value);
         if (interp->had_error) return val_unit();
         env_define(interp->current_env, node->as.let_bind.name, val, node->as.let_bind.is_mut);
+        val_free(val);
         return val_unit();
     }
 
@@ -1177,6 +1270,7 @@ Value interp_exec(Interp *interp, Node *node) {
                     node->line, node->as.assign.name);
             interp->had_error = true;
         }
+        val_free(val);
         return val_unit();
     }
 
@@ -1185,6 +1279,7 @@ Value interp_exec(Interp *interp, Node *node) {
         if (interp->had_error) return val_unit();
         /* Shadow: redefine in current scope (env_define allows overwrite) */
         env_define(interp->current_env, node->as.shadow.name, val, false);
+        val_free(val);
         return val_unit();
     }
 
@@ -1193,9 +1288,13 @@ Value interp_exec(Interp *interp, Node *node) {
         if (interp->had_error) return val_unit();
         if (cond.type != VAL_BOOL) {
             fprintf(stderr, "[line %d] Runtime error: if condition must be Bool.\n", node->line);
-            interp->had_error = true; return val_unit();
+            interp->had_error = true;
+            val_free(cond);
+            return val_unit();
         }
-        if (cond.as.bool_val)
+        bool branch = cond.as.bool_val;
+        val_free(cond);
+        if (branch)
             return interp_exec(interp, node->as.if_expr.then_b);
         else if (node->as.if_expr.else_b)
             return interp_exec(interp, node->as.if_expr.else_b);
@@ -1224,14 +1323,17 @@ Value interp_exec(Interp *interp, Node *node) {
                 Env *arm_env = env_new(interp->current_env);
                 if (arm->binding)
                     env_define(arm_env, arm->binding, inner_val, false);
+                val_free(inner_val);
                 Env *prev = interp->current_env;
                 interp->current_env = arm_env;
                 Value res = interp_exec(interp, arm->body);
                 interp->current_env = prev;
                 env_free(arm_env);
+                val_free(subject);
                 return res;
             }
         }
+        val_free(subject);
         fprintf(stderr, "[line %d] Runtime error: Non-exhaustive match.\n", node->line);
         interp->had_error = true;
         return val_unit();
@@ -1243,6 +1345,7 @@ Value interp_exec(Interp *interp, Node *node) {
         interp->current_env = block_env;
         Value last = val_unit();
         for (int i = 0; i < node->as.block.stmts.count; i++) {
+            val_free(last);
             last = interp_exec(interp, node->as.block.stmts.items[i]);
             if (interp->had_error || interp->returning ||
                 interp->breaking || interp->continuing) break;
@@ -1261,6 +1364,7 @@ Value interp_exec(Interp *interp, Node *node) {
            so they can always find themselves (recursion) and siblings. */
         fn.closure_env = interp->current_env;
         env_define(interp->current_env, fn.name, val_fn(fn), false);
+        free(fn.name);
         return val_unit();
     }
 
@@ -1284,10 +1388,17 @@ Value interp_exec(Interp *interp, Node *node) {
         Value *args = malloc(sizeof(Value) * (argc > 0 ? argc : 1));
         for (int i = 0; i < argc; i++) {
             args[i] = interp_exec(interp, node->as.call.args.items[i]);
-            if (interp->had_error) { free(args); return val_unit(); }
+            if (interp->had_error) {
+                for (int j = 0; j <= i; j++) val_free(args[j]);
+                free(args);
+                val_free(callee);
+                return val_unit();
+            }
         }
         Value res = call_value(callee, args, argc, node->line);
+        for (int i = 0; i < argc; i++) val_free(args[i]);
         free(args);
+        val_free(callee);
         return res;
     }
 
@@ -1323,12 +1434,14 @@ Value interp_exec(Interp *interp, Node *node) {
         if (interp->had_error) return val_unit();
         if (iter.type != VAL_LIST) {
             fprintf(stderr, "[line %d] Runtime error: 'for' requires a List (use range()).\n", node->line);
-            interp->had_error = true; return val_unit();
+            interp->had_error = true;
+            val_free(iter);
+            return val_unit();
         }
         for (int i = 0; i < iter.as.list->count; i++) {
             Env *loop_env = env_new(interp->current_env);
             env_define(loop_env, node->as.for_loop.var_name,
-                       val_clone(iter.as.list->items[i]), false);
+                       iter.as.list->items[i], false);
             Env *prev = interp->current_env;
             interp->current_env = loop_env;
 
@@ -1341,43 +1454,64 @@ Value interp_exec(Interp *interp, Node *node) {
             if (interp->breaking)   { interp->breaking = false; break; }
             if (interp->continuing) { interp->continuing = false; }
         }
+        val_free(iter);
         return val_unit();
     }
 
     case NODE_SOME: {
         Value v = interp_exec(interp, node->as.some_val.value);
-        return interp->had_error ? val_unit() : val_some(v);
+        if (interp->had_error) return val_unit();
+        Value res = val_some(v);
+        val_free(v);
+        return res;
     }
 
     case NODE_NONE: return val_none();
 
     case NODE_OK: {
         Value v = interp_exec(interp, node->as.ok_val.value);
-        return interp->had_error ? val_unit() : val_ok(v);
+        if (interp->had_error) return val_unit();
+        Value res = val_ok(v);
+        val_free(v);
+        return res;
     }
 
     case NODE_ERR: {
         Value v = interp_exec(interp, node->as.err_val.value);
-        return interp->had_error ? val_unit() : val_err(v);
+        if (interp->had_error) return val_unit();
+        Value res = val_err(v);
+        val_free(v);
+        return res;
     }
 
     case NODE_UNWRAP: {
         Value v = interp_exec(interp, node->as.unwrap.operand);
         if (interp->had_error) return val_unit();
-        if (v.type == VAL_SOME) return val_clone(*v.as.inner);
+        if (v.type == VAL_SOME) {
+            Value res = val_clone(*v.as.inner);
+            val_free(v);
+            return res;
+        }
         if (v.type == VAL_NONE) {
             interp->returning  = true;
             interp->return_val = val_none();
+            val_free(v);
             return val_unit();
         }
-        if (v.type == VAL_OK) return val_clone(*v.as.inner);
+        if (v.type == VAL_OK) {
+            Value res = val_clone(*v.as.inner);
+            val_free(v);
+            return res;
+        }
         if (v.type == VAL_ERR) {
             interp->returning  = true;
             interp->return_val = val_clone(v);
+            val_free(v);
             return val_unit();
         }
         fprintf(stderr, "[line %d] Runtime error: '?' requires Option or Result.\n", node->line);
         interp->had_error = true;
+        val_free(v);
         return val_unit();
     }
 
@@ -1392,6 +1526,7 @@ Value interp_exec(Interp *interp, Node *node) {
     case NODE_PROGRAM: {
         Value last = val_unit();
         for (int i = 0; i < node->as.program.count; i++) {
+            val_free(last);
             last = interp_exec(interp, node->as.program.items[i]);
             if (interp->had_error || interp->returning) break;
         }
@@ -1402,7 +1537,7 @@ Value interp_exec(Interp *interp, Node *node) {
         Value lst = val_list();
         for (int i = 0; i < node->as.list_lit.elements.count; i++) {
             Value el = interp_exec(interp, node->as.list_lit.elements.items[i]);
-            if (interp->had_error) return val_unit();
+            if (interp->had_error) { val_free(lst); return val_unit(); }
             list_push(&lst, el);
         }
         return lst;
@@ -1413,30 +1548,44 @@ Value interp_exec(Interp *interp, Node *node) {
         if (interp->had_error) return val_unit();
         if (arr.type != VAL_LIST && arr.type != VAL_STRING) {
             fprintf(stderr, "[line %d] Runtime error: Can only index lists or strings.\n", node->line);
-            interp->had_error = true; return val_unit();
+            interp->had_error = true;
+            val_free(arr);
+            return val_unit();
         }
         Value idx = interp_exec(interp, node->as.index.index);
-        if (interp->had_error) return val_unit();
+        if (interp->had_error) {
+            val_free(arr);
+            return val_unit();
+        }
         if (idx.type != VAL_INT) {
             fprintf(stderr, "[line %d] Runtime error: Index must be an integer.\n", node->line);
-            interp->had_error = true; return val_unit();
+            interp->had_error = true;
+            val_free(arr);
+            val_free(idx);
+            return val_unit();
         }
         int64_t i_val = idx.as.int_val;
+        Value res = val_unit();
         if (arr.type == VAL_LIST) {
             if (i_val < 0 || i_val >= arr.as.list->count) {
                 fprintf(stderr, "[line %d] Runtime error: Index out of bounds.\n", node->line);
-                interp->had_error = true; return val_unit();
+                interp->had_error = true;
+            } else {
+                res = val_clone(arr.as.list->items[(size_t)i_val]);
             }
-            return val_clone(arr.as.list->items[(size_t)i_val]);
         } else {
             int64_t len = (int64_t)strlen(arr.as.string_val);
             if (i_val < 0 || i_val >= len) {
                 fprintf(stderr, "[line %d] Runtime error: String index out of bounds.\n", node->line);
-                interp->had_error = true; return val_unit();
+                interp->had_error = true;
+            } else {
+                char buf[2] = { arr.as.string_val[(size_t)i_val], '\0' };
+                res = val_string(buf);
             }
-            char buf[2] = { arr.as.string_val[(size_t)i_val], '\0' };
-            return val_string(buf);
         }
+        val_free(arr);
+        val_free(idx);
+        return res;
     }
 
     default:

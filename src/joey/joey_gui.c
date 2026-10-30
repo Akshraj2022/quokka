@@ -39,7 +39,7 @@ void GuiRunScript() {
     SetWindowText(hConsole, "> Running script...\r\n");
     
     char cmdLine[256];
-    sprintf(cmdLine, "quokka.exe run GUICHENOTIA_temp.qk");
+    snprintf(cmdLine, sizeof(cmdLine), "quokka.exe run GUICHENOTIA_temp.qk");
     
     SECURITY_ATTRIBUTES sa;
     sa.nLength = sizeof(sa);
@@ -113,10 +113,11 @@ void GuiOpenFile(HWND hwnd) {
             fseek(f, 0, SEEK_END);
             long len = ftell(f);
             fseek(f, 0, SEEK_SET);
+            if (len < 0) { fclose(f); return; }
             char *buf = malloc(len + 1);
             if (!buf) { fclose(f); return; }
-            fread(buf, 1, len, f);
-            buf[len] = '\0';
+            size_t nread = fread(buf, 1, len, f);
+            buf[nread] = '\0';
             fclose(f);
             
             SetWindowText(hEditor, buf);
@@ -197,6 +198,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             OldEditorProc = (WNDPROC)SetWindowLongPtr(hEditor, GWLP_WNDPROC, (LONG_PTR)EditorProc);
             break;
             
+        case WM_SIZE: {
+            int w = LOWORD(lParam);
+            int h = HIWORD(lParam);
+            if (hEditor && hConsole) {
+                int editor_h = (h - 90) * 2 / 3;
+                if (editor_h < 50) editor_h = 50;
+                int console_h = (h - 90) - editor_h - 10;
+                if (console_h < 50) console_h = 50;
+                MoveWindow(hEditor, 10, 50, (w > 20 ? w - 20 : 100), editor_h, TRUE);
+                MoveWindow(hConsole, 10, 60 + editor_h, (w > 20 ? w - 20 : 100), console_h, TRUE);
+            }
+            return 0;
+        }
+
         case WM_COMMAND:
             if (LOWORD(wParam) == 1) GuiOpenFile(hwnd);
             else if (LOWORD(wParam) == 2) GuiSaveFile(hwnd);
@@ -245,8 +260,9 @@ void joey_start_gui() {
     if (hwndConsole) ShowWindow(hwndConsole, SW_SHOW);
 }
 #else
-void joey_start_gui() {
-    printf("Native GUI is only supported on Windows in this version.\n");
+void joey_start_gui(void) {
+    printf("[GUICHENOTIA] Native Win32 GUI is compiled for Windows.\n");
+    printf("[GUICHENOTIA] On POSIX/macOS/Linux, GUI is available via web/terminal interface.\n");
 }
 #endif
 
