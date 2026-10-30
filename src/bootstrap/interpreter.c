@@ -190,8 +190,11 @@ void list_push(Value *list, Value item) {
     if (list->type != VAL_LIST) return;
     QkList *l = list->as.list;
     if (l->count >= l->cap) {
-        l->cap = l->cap == 0 ? 8 : l->cap * 2;
-        l->items = realloc(l->items, sizeof(Value) * l->cap);
+        int new_cap = l->cap == 0 ? 8 : l->cap * 2;
+        Value *new_items = realloc(l->items, sizeof(Value) * new_cap);
+        if (!new_items) qk_fatal("Out of memory expanding list");
+        l->items = new_items;
+        l->cap = new_cap;
     }
     l->items[l->count++] = item;
 }
