@@ -40,6 +40,9 @@ void native_emit_progress(int step, int total, double loss) {
         }
         closesocket(s);
     }
+#ifdef _WIN32
+    WSACleanup();
+#endif
 }
 
 
