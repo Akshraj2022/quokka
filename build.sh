@@ -22,7 +22,7 @@ fi
 
 OS="$(uname -s)"
 CFLAGS="-std=c11 -Wall -Wextra -Wno-unused-parameter -O2"
-LIBS="-lm -lpthread"
+LIBS="-lm -lpthread -ldl"
 
 echo "Building Quokka for $OS using $CC..."
 

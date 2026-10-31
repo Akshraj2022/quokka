@@ -5,7 +5,7 @@
 
   <p><a href="https://quokka.space">Visit quokka.space</a></p>
 
-  [![Version](https://img.shields.io/badge/version-v0.9.1-blue.svg)](https://quokka.space)
+  [![Version](https://img.shields.io/badge/version-v0.9.2-blue.svg)](https://quokka.space)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://quokka.space)
 </div>
@@ -17,6 +17,10 @@ Quokka is a modern, expression-oriented programming language designed with an un
 ## Key Features
 
 * **Verifiably Self-Hosted**: The lexer, parser, AST, and evaluator are implemented in Quokka. The C-based bootstrap host parses the initial source, but we cryptographically verify that the C parser and Quokka parser produce identical ASTs.
+* **Modular Codebase & Imports**: Multi-file code organization via `import "path/to/module"` and `import "module" as alias`, featuring automatic duplicate import prevention and standard library path resolution.
+* **User-Defined Structs**: First-class struct definitions (`struct Point { x, y }`) with field instantiation, property access (`p.x`), and mutable field updates (`p.x = 99`).
+* **Cross-Platform Networking**: Built-in socket primitives (`socket_connect`, `socket_listen`, `socket_accept`, `socket_send`, `socket_recv`, `socket_close`) backed by Winsock on Windows and BSD sockets on POSIX.
+* **Foreign Function Interface (FFI)**: Dynamic native library inspection and binding (`ffi_open`, `ffi_available`, `ffi_close`) utilizing `LoadLibraryA` on Windows and `dlopen`/`dlsym` on Linux/macOS.
 * **Deterministic & Safe**: Exceptions do not exist. Errors are handled safely via Monadic `Option` and `Result` types (`Ok` / `Err`), paired with powerful `match` expressions and the `?` postfix operator.
 * **Immutable by Default**: Variables (`let`) are immutable. Mutation (`let mut`) and explicit shadowing (`shadow`) must be opted into.
 * **The Joey ML Extension**: Quokka includes `joey.qka`, a modular extension that orchestrates complex Python/PyTorch/Unsloth workflows (like Llama-3 QLoRA fine-tuning) via a secure JSON IPC boundary. Python is never embedded in the Quokka core.

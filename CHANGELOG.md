@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.9.2] - 2026-10-31 - Modules, User-Defined Structs, Sockets, and FFI
+
+### Modular Code Architecture
+- **Module Import System**: Implemented `import "module/path"` and `import "module" as alias` keywords and parser grammar.
+- **Deduplicated Import Cache**: Built-in interpreter tracks loaded modules, preventing multiple executions or cyclic import overhead.
+- **Resolution Pathing**: Automatically resolves relative filepaths, standard library paths (`src/std/`), and `.qk`/`.qka` extensions.
+
+### User-Defined Structs & Object System
+- **Struct Definitions**: First-class `struct Name { field1, field2, ... }` AST declarations and constructor functions.
+- **Property Access**: Postfix dot-syntax (`struct.field`) evaluator for dynamic, zero-leak field extraction.
+- **Mutable Field Updates**: Postfix field assignment (`struct.field = value`) with type preservation and intermediate cleanup.
+- **Zero-Leak Lifetime**: Integrated `VAL_STRUCT` with reference-counted instances (`QkStructInstance`) and recursive GC.
+
+### Cross-Platform Network Sockets
+- **Socket Primitives**: Implemented `socket_connect(host, port)`, `socket_listen(port)`, `socket_accept(fd)`, `socket_send(fd, data)`, `socket_recv(fd, max_bytes)`, and `socket_close(fd)`.
+- **Cross-Platform Abstraction**: Seamlessly operates on Winsock2 on Windows (`-lws2_32`) and standard BSD Sockets on Linux and macOS.
+- **Deterministic Error Handling**: All socket primitives return `Result<Int/String, String>` monadic types (`Ok` / `Err`).
+
+### Foreign Function Interface (FFI)
+- **Dynamic Library Inspection**: Implemented `ffi_open(path)`, `ffi_available(handle, symbol_name)`, and `ffi_close(handle)`.
+- **Cross-Platform Dynamic Linker**: Built with `LoadLibraryA`/`GetProcAddress` on Windows and `dlopen`/`dlsym` (`-ldl`) on POSIX systems.
+
+### Hardening & Zero-Leak Auditing
+- **Header Collision Resolution**: Renamed `TokenType` to `QkTokenType` across `quokka.h`, `lexer.c`, and `parser.c` to prevent collisions with Windows SDK `winnt.h`.
+- **AST Tracker Protection**: Eliminated duplicate AST tracking calls on imported module trees, preventing double-frees on termination.
+- **Valgrind Verification**: 100% memory clean (`477 allocs, 477 frees, 0 bytes in 0 blocks, 0 errors`).
+
 ## [0.9.1] - 2026-10-30 - Comprehensive Hardening & Zero-Leak Release
 
 ### Zero-Leak Memory Engine (Valgrind-Verified 0 Leaks)
@@ -113,55 +140,6 @@ Milestone v0.9.0 delivers comprehensive stability, security, memory management, 
 - Cleaned corrupted mixed UTF-16 bytes in `.gitignore`.
 - Removed developer scratch notes from `parser.c`.
 - Added CUDA error checking following kernel launch and synchronization.
-
-# Changelog
-
-## [0.9.1] - 2026-10-30 - Comprehensive Hardening & Zero-Leak Release
-
-### Zero-Leak Memory Engine (Valgrind-Verified 0 Leaks)
-- **Complete AST Garbage Collection**: Implemented full recursive AST destructor `node_free()` and root tracking registry (`qk_ast_track`, `qk_ast_free_all`). Hooked AST destruction into arena resets, REPL executions, and program termination.
-- **Function Call Argument Leak Elimination**: Fixed double-cloning memory leaks in `call_value()` parameter binding.
-- **Pattern Match Binding Leak Elimination**: Fixed value leaks in `NODE_MATCH` arm bindings by properly freeing cloned subject values.
-- **Loop Iteration Leak Elimination**: Fixed double-cloning memory leaks in `for` loop iteration variable bindings.
-- **Destructor & Refcount Hardening**: Added reference counting to `QkList` and `Env`, differentiating closure snapshots from lexical scope chains to prevent double-frees.
-- **Intermediate Expression Cleanup**: Systematically reclaimed intermediate values in binary expressions, unary operations, string concatenations, variable assignments (`NODE_LET`, `NODE_ASSIGN`, `NODE_SHADOW`), list lookups, and block statements.
-- **Builtin Return Value Cleanup**: Fixed leaks in `builtin_capture_println()` and updated `builtin_list_set()` to free overwritten values.
-- **Parser Assignment Leak Fix**: Fixed statement expression node leak in `parser.c` assignment parsing.
-- **Verified 0 Leaks**: 100% clean Valgrind memory audits on Linux across all conformance suites and example programs (`0 bytes in 0 blocks`).
-
-### Cross-Platform Architecture & Portability (Linux, macOS, Windows)
-- **Hardware Architecture Detection**: Added `arch_name()` builtin supporting `x86_64`, `arm64`, `x86`, and `arm`.
-- **POSIX Conformance**: Added `_DEFAULT_SOURCE` and `_POSIX_C_SOURCE 200809L` headers across Joey native and monitor modules, resolving 64-bit pointer truncation warnings and segfaults on Linux and macOS.
-- **Compiler Compatibility**: Guarded MSVC `#pragma comment` directives to eliminate compiler warnings under MinGW GCC and Clang.
-- **Standardized Headers**: Replaced non-standard `<memory.h>` with standard `<string.h>` in `sha256.c`.
-- **Universal Build System**: Created universal `build.sh` (supporting GCC and Clang on Linux/macOS) and standard cross-platform `Makefile`.
-- **Cross-Platform Test Harness**: Created universal POSIX test harness `tests/run_tests.sh` and modernized `tests/run_differential.sh` and `tests/test_negative.sh`.
-
-### Runtime Stability & Stack Safety
-- **Call Stack Recursion Guard**: Implemented recursion depth tracking (`QK_MAX_CALL_DEPTH 2500`) in `call_value()`, transforming runaway recursive stack overflows into deterministic runtime errors.
-- **Lexer Escape Line Synchronization**: Fixed lexer source line desynchronization when string literals contain escaped newlines.
-- **String Quote Lexing Repair**: Fixed string literal parsing across `src/lexer.qka`, `src/quokka_interpreter.qka`, and `src/main.qka`.
-- **Terminal Cursor Signal Handling**: Installed `SIGINT` and `SIGTERM` signal handlers in `joey_watch.c` to guarantee terminal cursor restoration.
-- **Sparkline Visualization**: Fixed inverted sparkline scaling bug in Joey watch terminal monitor.
-- **Joey C/Python Robustness**: Added bounds checks to `ftell` and `fread` returns, NULL guards to `localtime`/`gmtime`, deduplicated CUDA error declarations, and protected Python backend argument unpacking.
-
-### CLI & Infrastructure
-- **Standard CLI Flags**: Added `--version` (`-v`) and `--help` (`-h`) flags to Quokka CLI.
-- **CI Workflows**: Modernized GitHub Actions workflows (`release.yml`, `linux-build.yml`, `macos-build.yml`, `macos-cross-build.yml`) with automated test runners and pthread linkage.
-
-## [0.9.0] - 2026-10-30 - Milestone Release
-
-### Summary
-Milestone v0.9.0 delivers comprehensive stability, security, memory management, and build infrastructure upgrades across all layers of the Quokka language and Joey AI/ML framework.
-
-### Highlights
-- **Zero Mojibake & Emojis**: Complete eradication of double-encoded UTF-8 artifacts and emojis across documentation, TUI monitors, and code.
-- **Robust Memory Management**: Introduction of `qk_malloc`/`qk_realloc`/`qk_free` with fatal out-of-memory protections, recursive `val_free()` destructors, and closure environment isolation.
-- **Mathematical Safety**: Hardware `SIGFPE` exception prevention on signed 64-bit integer overflow (`INT64_MIN / -1` and `INT64_MIN % -1`).
-- **Complete CLI Capabilities**: Native support for `quokka run <file>` command structure, auto-detecting test harness binaries, and robust fallback chains in `quokka.bat`.
-- **Parser & Type System**: Full 64-bit bounds checking, string escape character processing (`\n`, `\t`, `\r`, `\\`, `\"`), and monadic `Result` support in `and_then()`.
-- **GPU Safety**: Rank clamping and CUDA kernel error tracking for Joey LoRA tensor operations.
-- **Cross-Platform Tooling**: Unified build scripts and workflows across Windows, macOS (arm64/x86_64), and Linux.
 
 ## [0.8.9] - 2026-10-30
 

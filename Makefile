@@ -24,9 +24,9 @@ else ifeq ($(UNAME_S),Windows)
     LIBS = -lws2_32 -luser32 -lgdi32 -lcomdlg32
     TARGET := $(BUILD_DIR)/quokka.exe
 else ifeq ($(UNAME_S),Darwin)
-    LIBS = -lm -lpthread
+    LIBS = -lm -lpthread -ldl
 else
-    LIBS = -lm -lpthread
+    LIBS = -lm -lpthread -ldl
 endif
 
 .PHONY: all clean test

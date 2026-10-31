@@ -54,7 +54,7 @@ static bool match_char(Lexer *lex, char expected) {
     return true;
 }
 
-static Token make_token(Lexer *lex, TokenType type) {
+static Token make_token(Lexer *lex, QkTokenType type) {
     Token t;
     t.type   = type;
     t.start  = lex->start;
@@ -105,7 +105,7 @@ static void skip_whitespace(Lexer *lex) {
 typedef struct {
     const char *word;
     int length;
-    TokenType type;
+    QkTokenType type;
 } Keyword;
 
 static Keyword keywords[] = {
@@ -134,10 +134,12 @@ static Keyword keywords[] = {
     {"impl",     4, TOK_IMPL},
     {"break",    5, TOK_BREAK},
     {"continue", 8, TOK_CONTINUE},
+    {"import",   6, TOK_IMPORT},
+    {"as",       2, TOK_AS},
     {NULL,       0, TOK_ERROR},
 };
 
-static TokenType ident_type(const char *start, int length) {
+static QkTokenType ident_type(const char *start, int length) {
     for (int i = 0; keywords[i].word != NULL; i++) {
         if (keywords[i].length == length &&
             memcmp(keywords[i].word, start, length) == 0) {
@@ -186,7 +188,7 @@ static Token scan_identifier(Lexer *lex) {
     while (is_alnum(peek(lex))) advance(lex);
 
     int length = (int)(lex->current - lex->start);
-    TokenType type = ident_type(lex->start, length);
+    QkTokenType type = ident_type(lex->start, length);
     return make_token(lex, type);
 }
 
@@ -259,7 +261,7 @@ Token lexer_next(Lexer *lex) {
 
 /* ---- token name for debug ---- */
 
-const char *tok_name(TokenType type) {
+const char *tok_name(QkTokenType type) {
     switch (type) {
         case TOK_INT:        return "INT";
         case TOK_FLOAT:      return "FLOAT";
@@ -290,6 +292,8 @@ const char *tok_name(TokenType type) {
         case TOK_IMPL:       return "impl";
         case TOK_BREAK:      return "break";
         case TOK_CONTINUE:   return "continue";
+        case TOK_IMPORT:     return "import";
+        case TOK_AS:         return "as";
         case TOK_PLUS:       return "+";
         case TOK_MINUS:      return "-";
         case TOK_STAR:       return "*";

@@ -73,6 +73,8 @@ typedef enum {
     TOK_IMPL,           /* impl        */
     TOK_BREAK,          /* break       */
     TOK_CONTINUE,       /* continue    */
+    TOK_IMPORT,         /* import      */
+    TOK_AS,             /* as          */
 
     /* Operators */
     TOK_PLUS,           /* +           */
@@ -106,16 +108,16 @@ typedef enum {
     /* Special */
     TOK_EOF,
     TOK_ERROR,
-} TokenType;
+} QkTokenType;
 
 typedef struct {
-    TokenType type;
+    QkTokenType type;
     const char *start;      /* pointer into source string */
     int length;
     int line;
 } Token;
 
-const char *tok_name(TokenType type);
+const char *tok_name(QkTokenType type);
 
 /* ============================================================
  * Lexer
@@ -185,6 +187,11 @@ typedef enum {
     NODE_LIST_LIT,
     NODE_INDEX,
     NODE_PROGRAM,
+    NODE_IMPORT,
+    NODE_STRUCT_DEF,
+    NODE_STRUCT_CONSTRUCT,
+    NODE_GET_FIELD,
+    NODE_SET_FIELD,
 } NodeType;
 
 struct Node {
@@ -207,10 +214,10 @@ struct Node {
         char *name;
 
         /* NODE_UNARY:  op operand */
-        struct { TokenType op; Node *operand; } unary;
+        struct { QkTokenType op; Node *operand; } unary;
 
         /* NODE_BINARY: left op right */
-        struct { TokenType op; Node *left; Node *right; } binary;
+        struct { QkTokenType op; Node *left; Node *right; } binary;
 
         /* NODE_LET:    let [mut] name [: type] = value */
         struct { char *name; char *type_ann; Node *value; bool is_mut; } let_bind;
@@ -270,6 +277,21 @@ struct Node {
 
         /* NODE_PROGRAM */
         NodeList program;
+
+        /* NODE_IMPORT: import "path" [as alias] */
+        struct { char *path; char *alias; } import_stmt;
+
+        /* NODE_STRUCT_DEF: struct Name { fields... } */
+        struct { char *name; ParamList fields; } struct_def;
+
+        /* NODE_STRUCT_CONSTRUCT: internal struct instance builder */
+        struct { char *name; ParamList fields; } struct_construct;
+
+        /* NODE_GET_FIELD: object.field */
+        struct { Node *object; char *field; } get_field;
+
+        /* NODE_SET_FIELD: object.field = value */
+        struct { Node *object; char *field; Node *value; } set_field;
     } as;
 };
 
@@ -313,7 +335,11 @@ typedef enum {
     VAL_UNIT,
     VAL_LIST,
     VAL_AST_NODE,
+    VAL_STRUCT,
 } ValueType;
+
+/* Forward declaration */
+typedef struct QkStructInstance QkStructInstance;
 
 /* Built-in function pointer type */
 typedef Value (*BuiltinFn)(Value *args, int argc, int line);
@@ -334,18 +360,28 @@ typedef struct {
     int refcount;
 } QkList;
 
+/* Struct instance */
+struct QkStructInstance {
+    char *name;
+    int field_count;
+    char **field_names;
+    Value *field_values;
+    int refcount;
+};
+
 struct Value {
     ValueType type;
     union {
-        int64_t     int_val;
-        double      float_val;
-        bool        bool_val;
-        char       *string_val;
-        Value      *inner;          /* Some(v), Ok(v), Err(v) */
-        QkFunction  fn;
-        BuiltinFn   builtin;
-        QkList     *list;
-        Node       *ast_node;
+        int64_t           int_val;
+        double            float_val;
+        bool              bool_val;
+        char             *string_val;
+        Value            *inner;          /* Some(v), Ok(v), Err(v) */
+        QkFunction        fn;
+        BuiltinFn         builtin;
+        QkList           *list;
+        Node             *ast_node;
+        QkStructInstance *struct_val;
     } as;
 };
 
@@ -361,6 +397,7 @@ Value val_unit(void);
 Value val_fn(QkFunction f);
 Value val_builtin(BuiltinFn f);
 Value val_list(void);
+Value val_struct(const char *name, int count, char **names, Value *values);
 
 const char *val_type_name(Value v);
 void val_print(Value v);
@@ -407,6 +444,9 @@ typedef struct {
     bool breaking;
     bool continuing;
     int call_depth;
+    char **imported_modules;
+    int module_count;
+    int module_cap;
 } Interp;
 
 void  interp_init(Interp *interp);

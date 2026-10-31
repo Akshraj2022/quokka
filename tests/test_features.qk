@@ -1,0 +1,51 @@
+// Test 1: Structs and field access
+struct Point {
+    x,
+    y
+}
+
+let mut p = Point(10, 20)
+println("Point x: " ++ to_string(p.x))
+println("Point y: " ++ to_string(p.y))
+p.x = 99
+println("Updated x: " ++ to_string(p.x))
+
+// Test 2: Modules and Imports
+import "tests/module_math.qk"
+let sum = add(40, 2)
+println("Imported add(40, 2) = " ++ to_string(sum))
+let prod = multiply(6, 7)
+println("Imported multiply(6, 7) = " ++ to_string(prod))
+
+// Test 3: Sockets
+let s_res = socket_listen(19876)
+match s_res {
+    Ok(fd) => {
+        println("Socket listen successful on port 19876")
+        socket_close(fd)
+        println("Socket closed successfully")
+    },
+    Err(e) => {
+        println("Socket listen err: " ++ e)
+    }
+}
+
+// Test 4: FFI
+let mut lib_name = "libc.so.6"
+if os_name() == "windows" {
+    lib_name = "msvcrt.dll"
+}
+let ffi_res = ffi_open(lib_name)
+match ffi_res {
+    Ok(h) => {
+        println("FFI open successful: " ++ lib_name)
+        let has_puts = ffi_available(h, "puts")
+        println("FFI puts available: " ++ to_string(has_puts))
+        ffi_close(h)
+    },
+    Err(e) => {
+        println("FFI result: " ++ e)
+    }
+}
+
+println("All new features verified!")

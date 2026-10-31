@@ -175,6 +175,30 @@ void node_free(Node *node) {
             }
             if (node->as.program.items) free(node->as.program.items);
             break;
+        case NODE_IMPORT:
+            if (node->as.import_stmt.path) free(node->as.import_stmt.path);
+            if (node->as.import_stmt.alias) free(node->as.import_stmt.alias);
+            break;
+        case NODE_STRUCT_DEF:
+            if (node->as.struct_def.name) free(node->as.struct_def.name);
+            for (int i = 0; i < node->as.struct_def.fields.count; i++) {
+                if (node->as.struct_def.fields.items[i].name) free(node->as.struct_def.fields.items[i].name);
+                if (node->as.struct_def.fields.items[i].type_name) free(node->as.struct_def.fields.items[i].type_name);
+            }
+            if (node->as.struct_def.fields.items) free(node->as.struct_def.fields.items);
+            break;
+        case NODE_STRUCT_CONSTRUCT:
+            if (node->as.struct_construct.name) free(node->as.struct_construct.name);
+            break;
+        case NODE_GET_FIELD:
+            node_free(node->as.get_field.object);
+            if (node->as.get_field.field) free(node->as.get_field.field);
+            break;
+        case NODE_SET_FIELD:
+            node_free(node->as.set_field.object);
+            if (node->as.set_field.field) free(node->as.set_field.field);
+            node_free(node->as.set_field.value);
+            break;
         default:
             break;
     }
@@ -239,7 +263,7 @@ static void advance(Parser *p) {
     }
 }
 
-static void consume(Parser *p, TokenType type, const char *message) {
+static void consume(Parser *p, QkTokenType type, const char *message) {
     if (p->current.type == type) {
         advance(p);
         return;
@@ -247,11 +271,11 @@ static void consume(Parser *p, TokenType type, const char *message) {
     error_at(p, &p->current, message);
 }
 
-static bool check(Parser *p, TokenType type) {
+static bool check(Parser *p, QkTokenType type) {
     return p->current.type == type;
 }
 
-static bool match(Parser *p, TokenType type) {
+static bool match(Parser *p, QkTokenType type) {
     if (!check(p, type)) return false;
     advance(p);
     return true;
@@ -519,6 +543,12 @@ static Node *parse_postfix(Parser *p) {
             idx_node->as.index.index = expression(p);
             consume(p, TOK_RBRACKET, "Expect ']' after index");
             expr = idx_node;
+        } else if (match(p, TOK_DOT)) {
+            consume(p, TOK_IDENT, "Expect property name after '.'");
+            Node *dot = node_new(NODE_GET_FIELD, p->previous.line);
+            dot->as.get_field.object = expr;
+            dot->as.get_field.field = qk_strndup(p->previous.start, p->previous.length);
+            expr = dot;
         } else {
             break;
         }
@@ -760,15 +790,60 @@ static Node *statement(Parser *p) {
     if (match(p, TOK_BREAK)) {
         return node_new(NODE_BREAK, p->previous.line);
     }
+    if (match(p, TOK_IMPORT)) {
+        int line = p->previous.line;
+        char *path = NULL;
+        if (match(p, TOK_STRING)) {
+            int len = p->previous.length - 2;
+            path = unescape_string(p->previous.start + 1, len);
+        } else if (match(p, TOK_IDENT)) {
+            path = qk_strndup(p->previous.start, p->previous.length);
+        } else {
+            error_at(p, &p->current, "Expect string path or identifier after 'import'");
+            return NULL;
+        }
+        char *alias = NULL;
+        if (match(p, TOK_AS)) {
+            consume(p, TOK_IDENT, "Expect alias identifier after 'as'");
+            alias = qk_strndup(p->previous.start, p->previous.length);
+        }
+        Node *n = node_new(NODE_IMPORT, line);
+        n->as.import_stmt.path = path;
+        n->as.import_stmt.alias = alias;
+        return n;
+    }
+    if (match(p, TOK_STRUCT)) {
+        int line = p->previous.line;
+        consume(p, TOK_IDENT, "Expect struct name");
+        char *name = qk_strndup(p->previous.start, p->previous.length);
+        consume(p, TOK_LBRACE, "Expect '{' after struct name");
+        ParamList fields;
+        paramlist_init(&fields);
+        if (!check(p, TOK_RBRACE)) {
+            do {
+                consume(p, TOK_IDENT, "Expect field name");
+                Param param;
+                param.name = qk_strndup(p->previous.start, p->previous.length);
+                param.type_name = NULL;
+                if (match(p, TOK_COLON)) {
+                    consume(p, TOK_IDENT, "Expect field type");
+                    param.type_name = qk_strndup(p->previous.start, p->previous.length);
+                }
+                paramlist_push(&fields, param);
+            } while (match(p, TOK_COMMA));
+        }
+        consume(p, TOK_RBRACE, "Expect '}' after struct fields");
+        Node *n = node_new(NODE_STRUCT_DEF, line);
+        n->as.struct_def.name = name;
+        n->as.struct_def.fields = fields;
+        return n;
+    }
     if (match(p, TOK_CONTINUE)) {
         return node_new(NODE_CONTINUE, p->previous.line);
     }
     
     // Assignment or expression statement
-    // Simple lookahead: if IDENT and then '=' -> assignment
     if (check(p, TOK_IDENT)) {
-        // Peek ahead without consuming in Lexer?
-        // Since we don't have token peek, we parse expression.
         Node *expr = expression(p);
         if (match(p, TOK_ASSIGN)) {
             if (expr && expr->type == NODE_IDENT) {
@@ -776,6 +851,14 @@ static Node *statement(Parser *p) {
                 Node *n = node_new(NODE_ASSIGN, expr->line);
                 n->as.assign.name = expr->as.name;
                 n->as.assign.value = val;
+                free(expr);
+                return n;
+            } else if (expr && expr->type == NODE_GET_FIELD) {
+                Node *val = expression(p);
+                Node *n = node_new(NODE_SET_FIELD, expr->line);
+                n->as.set_field.object = expr->as.get_field.object;
+                n->as.set_field.field = expr->as.get_field.field;
+                n->as.set_field.value = val;
                 free(expr);
                 return n;
             } else {

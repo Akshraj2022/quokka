@@ -1,5 +1,26 @@
 #include "quokka.h"
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#define QK_SOCKET SOCKET
+#define QK_INVALID_SOCKET INVALID_SOCKET
+#define qk_closesocket closesocket
+#define QK_LIB_HANDLE HMODULE
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <dlfcn.h>
+#define QK_SOCKET int
+#define QK_INVALID_SOCKET -1
+#define qk_closesocket close
+#define QK_LIB_HANDLE void*
+#endif
+
 /* Forward declaration — used by builtins that need to call QkFunctions */
 static Interp *current_interp = NULL;
 
@@ -101,6 +122,22 @@ Value val_list(void) {
     return val;
 }
 
+Value val_struct(const char *name, int count, char **names, Value *values) {
+    Value val; val.type = VAL_STRUCT;
+    QkStructInstance *s = qk_malloc(sizeof(QkStructInstance));
+    s->name = qk_strdup(name ? name : "Struct");
+    s->field_count = count;
+    s->field_names = qk_malloc(sizeof(char*) * (count > 0 ? count : 1));
+    s->field_values = qk_malloc(sizeof(Value) * (count > 0 ? count : 1));
+    s->refcount = 1;
+    for (int i = 0; i < count; i++) {
+        s->field_names[i] = qk_strdup(names[i]);
+        s->field_values[i] = val_clone(values[i]);
+    }
+    val.as.struct_val = s;
+    return val;
+}
+
 /* ============================================================
  * Value operations
  * ============================================================ */
@@ -118,6 +155,7 @@ const char *val_type_name(Value v) {
         case VAL_BUILTIN: return "Function";
         case VAL_UNIT:    return "Unit";
         case VAL_LIST:    return "List";
+        case VAL_STRUCT:  return v.as.struct_val && v.as.struct_val->name ? v.as.struct_val->name : "Struct";
         default:          return "Unknown";
     }
 }
@@ -150,6 +188,21 @@ void val_free(Value v) {
                 }
             }
             break;
+        case VAL_STRUCT:
+            if (v.as.struct_val) {
+                v.as.struct_val->refcount--;
+                if (v.as.struct_val->refcount <= 0) {
+                    if (v.as.struct_val->name) free(v.as.struct_val->name);
+                    for (int i = 0; i < v.as.struct_val->field_count; i++) {
+                        if (v.as.struct_val->field_names[i]) free(v.as.struct_val->field_names[i]);
+                        val_free(v.as.struct_val->field_values[i]);
+                    }
+                    if (v.as.struct_val->field_names) free(v.as.struct_val->field_names);
+                    if (v.as.struct_val->field_values) free(v.as.struct_val->field_values);
+                    free(v.as.struct_val);
+                }
+            }
+            break;
         default:
             break;
     }
@@ -178,6 +231,18 @@ void val_print(Value v) {
             printf("]");
             break;
         }
+        case VAL_STRUCT: {
+            printf("%s {", v.as.struct_val && v.as.struct_val->name ? v.as.struct_val->name : "struct");
+            if (v.as.struct_val) {
+                for (int i = 0; i < v.as.struct_val->field_count; i++) {
+                    printf(" %s: ", v.as.struct_val->field_names[i]);
+                    val_print(v.as.struct_val->field_values[i]);
+                    if (i < v.as.struct_val->field_count - 1) printf(",");
+                }
+            }
+            printf(" }");
+            break;
+        }
     }
 }
 
@@ -199,6 +264,17 @@ bool val_equal(Value a, Value b) {
             if (a.as.list->count != b.as.list->count) return false;
             for (int i = 0; i < a.as.list->count; i++) {
                 if (!val_equal(a.as.list->items[i], b.as.list->items[i])) return false;
+            }
+            return true;
+        }
+        case VAL_STRUCT: {
+            if (a.as.struct_val == b.as.struct_val) return true;
+            if (!a.as.struct_val || !b.as.struct_val) return false;
+            if (strcmp(a.as.struct_val->name, b.as.struct_val->name) != 0) return false;
+            if (a.as.struct_val->field_count != b.as.struct_val->field_count) return false;
+            for (int i = 0; i < a.as.struct_val->field_count; i++) {
+                if (strcmp(a.as.struct_val->field_names[i], b.as.struct_val->field_names[i]) != 0) return false;
+                if (!val_equal(a.as.struct_val->field_values[i], b.as.struct_val->field_values[i])) return false;
             }
             return true;
         }
@@ -225,6 +301,9 @@ Value val_clone(Value v) {
         }
         case VAL_LIST:
             if (v.as.list) v.as.list->refcount++;
+            return v;
+        case VAL_STRUCT:
+            if (v.as.struct_val) v.as.struct_val->refcount++;
             return v;
         default: return v;
     }
@@ -375,6 +454,7 @@ static Value builtin_to_string(Value *args, int argc, int line) {
         case VAL_FLOAT:  snprintf(buf, sizeof(buf), "%g", args[0].as.float_val);            return val_string(buf);
         case VAL_BOOL:   return val_string(args[0].as.bool_val ? "true" : "false");
         case VAL_STRING: return val_clone(args[0]);
+        case VAL_STRUCT: snprintf(buf, sizeof(buf), "<struct %s>", args[0].as.struct_val && args[0].as.struct_val->name ? args[0].as.struct_val->name : ""); return val_string(buf);
         default:         return val_string("<value>");
     }
 }
@@ -638,6 +718,183 @@ static Value builtin_exec(Value *args, int argc, int line) {
     return val_ok(map);
 }
 
+static void qk_socket_init(void) {
+#ifdef _WIN32
+    static bool initialized = false;
+    if (!initialized) {
+        WSADATA wsa;
+        WSAStartup(MAKEWORD(2, 2), &wsa);
+        initialized = true;
+    }
+#endif
+}
+
+static Value builtin_socket_connect(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 2 || args[0].type != VAL_STRING || args[1].type != VAL_INT)
+        return val_err(val_string("Expected socket_connect(host: string, port: int)"));
+    qk_socket_init();
+    const char *host = args[0].as.string_val;
+    int port = (int)args[1].as.int_val;
+
+    QK_SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s == QK_INVALID_SOCKET) return val_err(val_string("Failed to create socket"));
+
+    struct hostent *he = gethostbyname(host);
+    if (!he) {
+        qk_closesocket(s);
+        return val_err(val_string("Could not resolve host"));
+    }
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(port);
+    memcpy(&addr.sin_addr, he->h_addr_list[0], he->h_length);
+
+    if (connect(s, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+        qk_closesocket(s);
+        return val_err(val_string("Failed to connect to host"));
+    }
+    return val_ok(val_int((int64_t)s));
+}
+
+static Value builtin_socket_listen(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_INT)
+        return val_err(val_string("Expected socket_listen(port: int)"));
+    qk_socket_init();
+    int port = (int)args[0].as.int_val;
+
+    QK_SOCKET s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (s == QK_INVALID_SOCKET) return val_err(val_string("Failed to create socket"));
+
+    int opt = 1;
+    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt));
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(port);
+
+    if (bind(s, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+        qk_closesocket(s);
+        return val_err(val_string("Failed to bind socket"));
+    }
+    if (listen(s, 16) != 0) {
+        qk_closesocket(s);
+        return val_err(val_string("Failed to listen on socket"));
+    }
+    return val_ok(val_int((int64_t)s));
+}
+
+static Value builtin_socket_accept(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_INT)
+        return val_err(val_string("Expected socket_accept(sockfd: int)"));
+    QK_SOCKET s = (QK_SOCKET)args[0].as.int_val;
+    struct sockaddr_in client_addr;
+    socklen_t client_len = sizeof(client_addr);
+    QK_SOCKET client_fd = accept(s, (struct sockaddr *)&client_addr, &client_len);
+    if (client_fd == QK_INVALID_SOCKET) return val_err(val_string("Failed to accept connection"));
+    return val_ok(val_int((int64_t)client_fd));
+}
+
+static Value builtin_socket_send(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 2 || args[0].type != VAL_INT || args[1].type != VAL_STRING)
+        return val_err(val_string("Expected socket_send(sockfd: int, data: string)"));
+    QK_SOCKET s = (QK_SOCKET)args[0].as.int_val;
+    const char *data = args[1].as.string_val;
+    int len = (int)strlen(data);
+    int sent = send(s, data, len, 0);
+    if (sent < 0) return val_err(val_string("Failed to send data"));
+    return val_ok(val_int((int64_t)sent));
+}
+
+static Value builtin_socket_recv(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 2 || args[0].type != VAL_INT || args[1].type != VAL_INT)
+        return val_err(val_string("Expected socket_recv(sockfd: int, max_bytes: int)"));
+    QK_SOCKET s = (QK_SOCKET)args[0].as.int_val;
+    int max_bytes = (int)args[1].as.int_val;
+    if (max_bytes <= 0 || max_bytes > 1048576) max_bytes = 4096;
+    char *buf = qk_malloc(max_bytes + 1);
+    int bytes_read = recv(s, buf, max_bytes, 0);
+    if (bytes_read < 0) {
+        free(buf);
+        return val_err(val_string("Failed to receive data"));
+    }
+    buf[bytes_read] = '\0';
+    Value out = val_ok(val_string(buf));
+    free(buf);
+    return out;
+}
+
+static Value builtin_socket_close(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_INT)
+        return val_err(val_string("Expected socket_close(sockfd: int)"));
+    QK_SOCKET s = (QK_SOCKET)args[0].as.int_val;
+    qk_closesocket(s);
+    return val_ok(val_bool(true));
+}
+
+#define MAX_FFI_HANDLES 32
+static QK_LIB_HANDLE ffi_handles[MAX_FFI_HANDLES] = {0};
+
+static Value builtin_ffi_open(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_STRING)
+        return val_err(val_string("Expected ffi_open(path: string)"));
+    const char *path = args[0].as.string_val;
+    QK_LIB_HANDLE handle = NULL;
+#ifdef _WIN32
+    handle = LoadLibraryA(path);
+#else
+    handle = dlopen(path, RTLD_LAZY);
+#endif
+    if (!handle) return val_err(val_string("Failed to load library"));
+    for (int i = 0; i < MAX_FFI_HANDLES; i++) {
+        if (!ffi_handles[i]) {
+            ffi_handles[i] = handle;
+            return val_ok(val_int(i + 1));
+        }
+    }
+    return val_err(val_string("FFI handle table full"));
+}
+
+static Value builtin_ffi_close(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_INT)
+        return val_err(val_string("Expected ffi_close(handle: int)"));
+    int idx = (int)args[0].as.int_val - 1;
+    if (idx < 0 || idx >= MAX_FFI_HANDLES || !ffi_handles[idx])
+        return val_err(val_string("Invalid FFI handle"));
+#ifdef _WIN32
+    FreeLibrary(ffi_handles[idx]);
+#else
+    dlclose(ffi_handles[idx]);
+#endif
+    ffi_handles[idx] = NULL;
+    return val_ok(val_bool(true));
+}
+
+static Value builtin_ffi_available(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 2 || args[0].type != VAL_INT || args[1].type != VAL_STRING)
+        return val_bool(false);
+    int idx = (int)args[0].as.int_val - 1;
+    if (idx < 0 || idx >= MAX_FFI_HANDLES || !ffi_handles[idx])
+        return val_bool(false);
+#ifdef _WIN32
+    FARPROC sym = GetProcAddress(ffi_handles[idx], args[1].as.string_val);
+#else
+    void *sym = dlsym(ffi_handles[idx], args[1].as.string_val);
+#endif
+    return val_bool(sym != NULL);
+}
+
 static Value builtin_list_set(Value *args, int argc, int line) {
     (void)line;
     if (argc != 3 || args[0].type != VAL_LIST || args[1].type != VAL_INT)
@@ -886,6 +1143,26 @@ static Value ast_to_list(Node *node) {
             list_push(&list, stmts);
             break;
         }
+        case NODE_IMPORT:
+            list_push(&list, val_string("Import"));
+            list_push(&list, val_string(node->as.import_stmt.path ? node->as.import_stmt.path : ""));
+            break;
+        case NODE_STRUCT_DEF:
+        case NODE_STRUCT_CONSTRUCT:
+            list_push(&list, val_string("StructDef"));
+            list_push(&list, val_string(node->as.struct_def.name ? node->as.struct_def.name : ""));
+            break;
+        case NODE_GET_FIELD:
+            list_push(&list, val_string("GetField"));
+            list_push(&list, ast_to_list(node->as.get_field.object));
+            list_push(&list, val_string(node->as.get_field.field ? node->as.get_field.field : ""));
+            break;
+        case NODE_SET_FIELD:
+            list_push(&list, val_string("SetField"));
+            list_push(&list, ast_to_list(node->as.set_field.object));
+            list_push(&list, val_string(node->as.set_field.field ? node->as.set_field.field : ""));
+            list_push(&list, ast_to_list(node->as.set_field.value));
+            break;
     }
     return list;
 }
@@ -1055,6 +1332,16 @@ extern Value builtin_joey_start_gui(Value *args, int argc, int line);
     env_define(interp->globals, "joey_run_native", val_builtin(builtin_joey_run_native), false);
     env_define(interp->globals, "exec",       val_builtin(builtin_exec),      false);
     
+    env_define(interp->globals, "socket_connect", val_builtin(builtin_socket_connect), false);
+    env_define(interp->globals, "socket_listen",  val_builtin(builtin_socket_listen),  false);
+    env_define(interp->globals, "socket_accept",  val_builtin(builtin_socket_accept),  false);
+    env_define(interp->globals, "socket_send",    val_builtin(builtin_socket_send),    false);
+    env_define(interp->globals, "socket_recv",    val_builtin(builtin_socket_recv),    false);
+    env_define(interp->globals, "socket_close",   val_builtin(builtin_socket_close),   false);
+    env_define(interp->globals, "ffi_open",       val_builtin(builtin_ffi_open),       false);
+    env_define(interp->globals, "ffi_close",      val_builtin(builtin_ffi_close),      false);
+    env_define(interp->globals, "ffi_available",  val_builtin(builtin_ffi_available),  false);
+
     env_define(interp->globals, "parse_native", val_builtin(builtin_parse_native), false);
     env_define(interp->globals, "eval_native", val_builtin(builtin_eval_native), false);
     env_define(interp->globals, "serialize_ast", val_builtin(builtin_serialize_ast), false);
@@ -1075,6 +1362,9 @@ void interp_init(Interp *interp) {
     interp->breaking    = false;
     interp->continuing  = false;
     interp->call_depth  = 0;
+    interp->imported_modules = NULL;
+    interp->module_count     = 0;
+    interp->module_cap       = 0;
     current_interp = interp;
     interp_register_builtins(interp);
 }
@@ -1083,6 +1373,15 @@ void interp_free(Interp *interp) {
     if (!interp) return;
     val_free(interp->return_val);
     interp->return_val = val_unit();
+    if (interp->imported_modules) {
+        for (int i = 0; i < interp->module_count; i++) {
+            if (interp->imported_modules[i]) free(interp->imported_modules[i]);
+        }
+        free(interp->imported_modules);
+        interp->imported_modules = NULL;
+        interp->module_count = 0;
+        interp->module_cap = 0;
+    }
     if (interp->globals) {
         env_free(interp->globals);
         interp->globals = NULL;
@@ -1586,6 +1885,168 @@ Value interp_exec(Interp *interp, Node *node) {
         val_free(arr);
         val_free(idx);
         return res;
+    }
+
+    case NODE_IMPORT: {
+        const char *path = node->as.import_stmt.path;
+        if (!path) return val_unit();
+        
+        for (int i = 0; i < interp->module_count; i++) {
+            if (strcmp(interp->imported_modules[i], path) == 0) {
+                return val_unit();
+            }
+        }
+        
+        char candidate[512];
+        const char *found_path = NULL;
+        FILE *tf = fopen(path, "rb");
+        if (tf) { fclose(tf); found_path = path; }
+        else {
+            snprintf(candidate, sizeof(candidate), "%s.qk", path);
+            tf = fopen(candidate, "rb");
+            if (tf) { fclose(tf); found_path = candidate; }
+            else {
+                snprintf(candidate, sizeof(candidate), "src/std/%s.qk", path);
+                tf = fopen(candidate, "rb");
+                if (tf) { fclose(tf); found_path = candidate; }
+                else {
+                    snprintf(candidate, sizeof(candidate), "src/std/%s.qka", path);
+                    tf = fopen(candidate, "rb");
+                    if (tf) { fclose(tf); found_path = candidate; }
+                }
+            }
+        }
+        if (!found_path) {
+            fprintf(stderr, "[line %d] Runtime error: Could not find module '%s'.\n", node->line, path);
+            interp->had_error = true;
+            return val_unit();
+        }
+
+        if (interp->module_count >= interp->module_cap) {
+            interp->module_cap = interp->module_cap < 8 ? 8 : interp->module_cap * 2;
+            interp->imported_modules = realloc(interp->imported_modules, sizeof(char*) * interp->module_cap);
+            if (!interp->imported_modules) qk_fatal("Out of memory in module cache");
+        }
+        interp->imported_modules[interp->module_count++] = qk_strdup(path);
+
+        FILE *mf = fopen(found_path, "rb");
+        if (!mf) {
+            fprintf(stderr, "[line %d] Runtime error: Could not open module '%s'.\n", node->line, found_path);
+            interp->had_error = true;
+            return val_unit();
+        }
+        fseek(mf, 0, SEEK_END);
+        long sz = ftell(mf);
+        fseek(mf, 0, SEEK_SET);
+        if (sz < 0) { fclose(mf); return val_unit(); }
+        char *src = qk_malloc((size_t)sz + 1);
+        size_t rd = fread(src, 1, (size_t)sz, mf);
+        src[rd] = '\0';
+        fclose(mf);
+
+        Parser mp;
+        parser_init(&mp, src);
+        Node *m_ast = parser_parse(&mp);
+        free(src);
+        if (!m_ast || mp.had_error) {
+            fprintf(stderr, "[line %d] Runtime error: Failed to parse module '%s'.\n", node->line, found_path);
+            interp->had_error = true;
+            return val_unit();
+        }
+        interp_exec(interp, m_ast);
+        return val_unit();
+    }
+
+    case NODE_STRUCT_DEF: {
+        QkFunction fn;
+        fn.name = qk_strdup(node->as.struct_def.name);
+        fn.params = node->as.struct_def.fields;
+        
+        Node *ctor = node_new(NODE_STRUCT_CONSTRUCT, node->line);
+        ctor->as.struct_construct.name = qk_strdup(node->as.struct_def.name);
+        ctor->as.struct_construct.fields = node->as.struct_def.fields;
+        qk_ast_track(ctor);
+        
+        fn.body = ctor;
+        fn.closure_env = interp->current_env;
+        env_define(interp->current_env, fn.name, val_fn(fn), false);
+        free(fn.name);
+        return val_unit();
+    }
+
+    case NODE_STRUCT_CONSTRUCT: {
+        int count = node->as.struct_construct.fields.count;
+        char **names = qk_malloc(sizeof(char*) * (count > 0 ? count : 1));
+        Value *values = qk_malloc(sizeof(Value) * (count > 0 ? count : 1));
+        for (int i = 0; i < count; i++) {
+            names[i] = node->as.struct_construct.fields.items[i].name;
+            Value *val_ptr = env_get(interp->current_env, names[i]);
+            values[i] = val_ptr ? *val_ptr : val_unit();
+        }
+        Value inst = val_struct(node->as.struct_construct.name, count, names, values);
+        free(names);
+        free(values);
+        return inst;
+    }
+
+    case NODE_GET_FIELD: {
+        Value obj = interp_exec(interp, node->as.get_field.object);
+        if (interp->had_error) return val_unit();
+        if (obj.type != VAL_STRUCT) {
+            fprintf(stderr, "[line %d] Runtime error: Cannot access property '%s' on %s.\n",
+                    node->line, node->as.get_field.field, val_type_name(obj));
+            interp->had_error = true;
+            val_free(obj);
+            return val_unit();
+        }
+        QkStructInstance *s = obj.as.struct_val;
+        for (int i = 0; i < s->field_count; i++) {
+            if (strcmp(s->field_names[i], node->as.get_field.field) == 0) {
+                Value res = val_clone(s->field_values[i]);
+                val_free(obj);
+                return res;
+            }
+        }
+        fprintf(stderr, "[line %d] Runtime error: Field '%s' not found on struct '%s'.\n",
+                node->line, node->as.get_field.field, s->name);
+        interp->had_error = true;
+        val_free(obj);
+        return val_unit();
+    }
+
+    case NODE_SET_FIELD: {
+        Value obj = interp_exec(interp, node->as.set_field.object);
+        if (interp->had_error) return val_unit();
+        if (obj.type != VAL_STRUCT) {
+            fprintf(stderr, "[line %d] Runtime error: Cannot set property '%s' on %s.\n",
+                    node->line, node->as.set_field.field, val_type_name(obj));
+            interp->had_error = true;
+            val_free(obj);
+            return val_unit();
+        }
+        Value val = interp_exec(interp, node->as.set_field.value);
+        if (interp->had_error) {
+            val_free(obj);
+            return val_unit();
+        }
+        QkStructInstance *s = obj.as.struct_val;
+        bool found = false;
+        for (int i = 0; i < s->field_count; i++) {
+            if (strcmp(s->field_names[i], node->as.set_field.field) == 0) {
+                val_free(s->field_values[i]);
+                s->field_values[i] = val_clone(val);
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            fprintf(stderr, "[line %d] Runtime error: Field '%s' not found on struct '%s'.\n",
+                    node->line, node->as.set_field.field, s->name);
+            interp->had_error = true;
+        }
+        val_free(obj);
+        val_free(val);
+        return val_unit();
     }
 
     default:
