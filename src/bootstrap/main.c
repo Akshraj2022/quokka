@@ -108,7 +108,7 @@ static char *read_file(const char *path) {
  * ============================================================ */
 
 static void repl(void) {
-    printf("Quokka v0.9.2  --  \"If you can read it, you can know what it does.\"\n");
+    printf("Quokka v0.9.3  --  \"If you can read it, you can know what it does.\"\n");
     printf("Type expressions or statements. Ctrl+C to exit.\n\n");
 
     /* We keep one persistent interpreter across REPL lines
@@ -157,11 +157,11 @@ static void repl(void) {
 int main(int argc, char *argv[]) {
     if (argc >= 2) {
         if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
-            printf("Quokka v0.9.2\n");
+            printf("Quokka v0.9.3\n");
             return 0;
         }
         if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
-            printf("Quokka Programming Language v0.9.2\n\n");
+            printf("Quokka Programming Language v0.9.3\n\n");
             printf("Usage:\n");
             printf("  quokka                     Start interactive REPL\n");
             printf("  quokka <file.qk>           Execute a script\n");

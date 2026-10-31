@@ -5,7 +5,7 @@
 
   <p><a href="https://quokka.space">Visit quokka.space</a></p>
 
-  [![Version](https://img.shields.io/badge/version-v0.9.2-blue.svg)](https://quokka.space)
+  [![Version](https://img.shields.io/badge/version-v0.9.3-blue.svg)](https://quokka.space)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://quokka.space)
 </div>
@@ -21,6 +21,7 @@ Quokka is a modern, expression-oriented programming language designed with an un
 * **User-Defined Structs**: First-class struct definitions (`struct Point { x, y }`) with field instantiation, property access (`p.x`), and mutable field updates (`p.x = 99`).
 * **Cross-Platform Networking**: Built-in socket primitives (`socket_connect`, `socket_listen`, `socket_accept`, `socket_send`, `socket_recv`, `socket_close`) backed by Winsock on Windows and BSD sockets on POSIX.
 * **Foreign Function Interface (FFI)**: Dynamic native library inspection and binding (`ffi_open`, `ffi_available`, `ffi_close`) utilizing `LoadLibraryA` on Windows and `dlopen`/`dlsym` on Linux/macOS.
+* **ATSRS (Adaptive Tiered Storage for Resource-Starved Training)**: Joey ML extension enabling QLoRA fine-tuning on models larger than available VRAM+RAM combined. Features three-tiered storage (T0 VRAM, T1 Pinned RAM, T2 NVMe SSD), read-only base weights, automatic fallback detection, depth-2 asynchronous prefetching, and real-time I/O wait monitoring (`io_wait_pct`, `tok/s`, `step_time`).
 * **Deterministic & Safe**: Exceptions do not exist. Errors are handled safely via Monadic `Option` and `Result` types (`Ok` / `Err`), paired with powerful `match` expressions and the `?` postfix operator.
 * **Immutable by Default**: Variables (`let`) are immutable. Mutation (`let mut`) and explicit shadowing (`shadow`) must be opted into.
 * **The Joey ML Extension**: Quokka includes `joey.qka`, a modular extension that orchestrates complex Python/PyTorch/Unsloth workflows (like Llama-3 QLoRA fine-tuning) via a secure JSON IPC boundary. Python is never embedded in the Quokka core.

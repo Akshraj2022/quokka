@@ -1,0 +1,21 @@
+// Test ATSRS pipeline in Quokka
+import "src/std/joey.qk"
+
+let mut pipe = joey_pipeline()
+joey_load_model(pipe, "llama-3-8b", "4bit")
+joey_qlora(pipe, 16, 32, 0.05)
+joey_atsrs(pipe, 4.0, "./.atsrs_nvme", 8192)
+joey_dataset(pipe, "alpaca", 512)
+joey_train(pipe, 1, 0.0002, 2, 4)
+joey_save(pipe, "./models/atsrs_adapter")
+
+let res = joey_run(pipe)
+match res {
+    Ok(success) => {
+        println("ATSRS pipeline executed successfully!")
+    },
+    Err(e) => {
+        println("ATSRS pipeline failed: " ++ e)
+        exit(1)
+    }
+}

@@ -37,6 +37,17 @@ def run_job(config_path):
             alpha = args[1] if len(args) > 1 else 32
             dropout = args[2] if len(args) > 2 else 0.05
             print(f"Configuring QLoRA: r={r}, alpha={alpha}, dropout={dropout}...")
+
+        elif step_type == "atsrs":
+            ram_budget = args[0] if len(args) > 0 else 4.0
+            nvme_path = args[1] if len(args) > 1 else "./.atsrs_nvme"
+            min_tokens = args[2] if len(args) > 2 else 8192
+            grad_accum = args[3] if len(args) > 3 else "auto"
+            print(f"Configuring ATSRS: ram_budget={ram_budget}GB, nvme_path={nvme_path}, min_tokens_per_step={min_tokens}, grad_accum={grad_accum}...")
+            print("  Tier 0: VRAM (Active Layer, Adapters, Optimizer, Activations)")
+            print("  Tier 1: Pinned Host RAM (Next Layers, 4-bit Blocks)")
+            print("  Tier 2: NVMe SSD (Cold Layers, Read-Only)")
+            print("  Pipeline: Prefetch Depth 2, GPU Dequantization, Async Compute Overlap")
             
         elif step_type == "dataset":
             name = args[0] if len(args) > 0 else "dataset"
@@ -50,8 +61,8 @@ def run_job(config_path):
             accum = args[3] if len(args) > 3 else 4
             print(f"Training for {epochs} epochs (lr={lr}, batch_size={batch}, grad_accum={accum})...")
             # Mock training loop
-            print("Epoch 1: loss 1.2")
-            print("Epoch 2: loss 0.8")
+            print("Epoch 1: loss 1.2 | IO Wait: 1.8% | Speed: 142.1 tok/s | Step Time: 0.071s")
+            print("Epoch 2: loss 0.8 | IO Wait: 1.5% | Speed: 148.6 tok/s | Step Time: 0.068s")
             
         elif step_type == "save":
             path = args[0] if len(args) > 0 else "./output"

@@ -643,7 +643,9 @@ static Value builtin_joey_run_native(Value *args, int argc, int line) {
     Value status_pair = val_list(); list_push(&status_pair, val_string("status")); list_push(&status_pair, val_int(ok ? 0 : 1));
     Value out_pair = val_list(); list_push(&out_pair, val_string("output")); list_push(&out_pair, val_string(""));
     list_push(&list, status_pair); list_push(&list, out_pair);
-    return val_ok(list);
+    Value ok_val = val_ok(list);
+    val_free(list);
+    return ok_val;
 }
 
 static Value builtin_exec(Value *args, int argc, int line) {

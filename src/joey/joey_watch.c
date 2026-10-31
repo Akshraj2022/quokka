@@ -232,6 +232,12 @@ int joey_watch_main(void) {
                 
                 printf("Speed:    %.2f tk/s\n", throughput);
                 
+                double io_wait = get_json_num(line, "io_wait_pct");
+                double step_time = get_json_num(line, "step_time");
+                if (io_wait > 0.0 || strstr(line, "\"io_wait_pct\"") != NULL) {
+                    printf("ATSRS:    IO Wait: %.1f%% | Step: %.3fs\n", io_wait, step_time);
+                }
+                
                 int vram = get_vram_mb();
                 if(vram > 0) {
                     printf("VRAM:     %d MB\n", vram);

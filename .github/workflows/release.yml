@@ -52,7 +52,7 @@ jobs:
           mkdir -p package/DEBIAN
           echo "Package: quokka" > package/DEBIAN/control
           VERSION="${GITHUB_REF_NAME#v}"
-          echo "Version: ${VERSION:-0.9.2}" >> package/DEBIAN/control
+          echo "Version: ${VERSION:-0.9.3}" >> package/DEBIAN/control
           echo "Section: base" >> package/DEBIAN/control
           echo "Priority: optional" >> package/DEBIAN/control
           echo "Architecture: amd64" >> package/DEBIAN/control

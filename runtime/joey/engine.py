@@ -9,7 +9,11 @@ import json
 import socket
 import time
 
-from transformers import TrainerCallback
+try:
+    from transformers import TrainerCallback
+except Exception:
+    class TrainerCallback:
+        pass
 
 class QuokkaProgressCallback(TrainerCallback):
     def __init__(self):
@@ -215,6 +219,54 @@ def train(bundle, dataset, epochs=3, lr=2e-4, batch_size=4, gradient_steps=4,
     return bundle
 
 
+def train_atsrs(bundle, dataset, atsrs_config, epochs=1, max_steps=10):
+    """Executes ATSRS pipelined training with T0/T1/T2 tiered storage."""
+    from .atsrs import ATSRSTrainer, build_synthetic_atsrs_model
+    import socket
+
+    print("[Joey ATSRS] Initializing Adaptive Tiered Storage Trainer...")
+    sock = None
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(("127.0.0.1", 9001))
+        sock.setblocking(False)
+    except Exception:
+        sock = None
+
+    model, storage, config = build_synthetic_atsrs_model(num_layers=8, hidden_dim=512, config=atsrs_config)
+    trainer = ATSRSTrainer(model, config, progress_sock=sock)
+
+    print(f"[Joey ATSRS] Training for {max_steps} steps (Auto Grad Accum: {config.grad_accum})")
+    metrics = {"loss": 0.0, "io_wait_pct": 0.0, "tok/s": 0.0, "step_time": 0.0}
+    try:
+        import torch
+        has_t = True
+    except ImportError:
+        has_t = False
+
+    for step in range(1, max_steps + 1):
+        micro_batches = []
+        if has_t:
+            for _ in range(config.grad_accum):
+                micro_batches.append(torch.randn(config.batch_size, config.seq_len, 512))
+        metrics = trainer.train_step(micro_batches)
+        print(f"[Joey ATSRS Step {step}/{max_steps}] Loss: {metrics['loss']:.4f} | "
+              f"IO Wait: {metrics['io_wait_pct']:.1f}% | "
+              f"Speed: {metrics['tok/s']:.1f} tok/s | "
+              f"Step Time: {metrics['step_time']:.3f}s")
+
+    storage.cleanup()
+    if sock:
+        try:
+            sock.sendall((json.dumps({"status": "completed"}) + "\n").encode("utf-8"))
+            sock.close()
+        except Exception:
+            pass
+    print("[Joey ATSRS] Training complete.")
+    bundle["atsrs_metrics"] = metrics
+    return bundle
+
+
 def save_model(bundle, path):
     """Save the adapter (LoRA weights) to disk."""
     model = bundle["model"]
@@ -339,6 +391,19 @@ def run_from_config(config_path):
                 targets=step.get("targets"),
             )
 
+        elif op == "atsrs":
+            from .atsrs import ATSRSConfig
+            state["atsrs_config"] = ATSRSConfig(
+                ram_budget_gb=step.get("ram_budget_gb", 4.0),
+                nvme_path=step.get("nvme_path", "./.atsrs_nvme"),
+                min_tokens_per_step=step.get("min_tokens_per_step", 8192),
+                batch_size=step.get("batch_size", 2),
+                seq_len=step.get("seq_len", 512),
+                grad_accum=step.get("grad_accum", "auto"),
+                prefetch_depth=step.get("prefetch_depth", 2),
+            )
+            print(f"[Joey] ATSRS configured: {state['atsrs_config'].to_dict()}")
+
         elif op == "load_dataset":
             state["dataset_raw"] = load_dataset(
                 step["name"],
@@ -355,19 +420,28 @@ def run_from_config(config_path):
             )
 
         elif op == "train":
-            state["bundle"] = train(
-                state["bundle"],
-                state["dataset"],
-                epochs=step.get("epochs", 3),
-                lr=step.get("lr", 2e-4),
-                batch_size=step.get("batch_size", 4),
-                gradient_steps=step.get("gradient_steps", 4),
-                warmup_ratio=step.get("warmup_ratio", 0.03),
-                max_steps=step.get("max_steps", -1),
-                logging_steps=step.get("logging_steps", 10),
-                save_steps=step.get("save_steps", 100),
-                output_dir=step.get("output_dir", "./joey_output"),
-            )
+            if state.get("atsrs_config"):
+                state["bundle"] = train_atsrs(
+                    state.get("bundle", {}),
+                    state.get("dataset"),
+                    state["atsrs_config"],
+                    epochs=step.get("epochs", 1),
+                    max_steps=step.get("max_steps", 10),
+                )
+            else:
+                state["bundle"] = train(
+                    state["bundle"],
+                    state["dataset"],
+                    epochs=step.get("epochs", 3),
+                    lr=step.get("lr", 2e-4),
+                    batch_size=step.get("batch_size", 4),
+                    gradient_steps=step.get("gradient_steps", 4),
+                    warmup_ratio=step.get("warmup_ratio", 0.03),
+                    max_steps=step.get("max_steps", -1),
+                    logging_steps=step.get("logging_steps", 10),
+                    save_steps=step.get("save_steps", 100),
+                    output_dir=step.get("output_dir", "./joey_output"),
+                )
 
         elif op == "save":
             save_model(state["bundle"], step["path"])

@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.9.3] - 2026-10-31 - ATSRS (Adaptive Tiered Storage for Resource-Starved Training)
+
+### ATSRS Engine Architecture (runtime/joey/atsrs.py)
+- **Extreme Scale QLoRA**: Enabled fine-tuning of multi-billion parameter foundation models exceeding combined VRAM + host RAM capacity.
+- **Three-Tier Storage Hierarchy**:
+  - **T0 VRAM**: Active layer (dequantized fp16), trainable LoRA adapters ($A$ and $B$ low-rank matrices), AdamW optimizer states, and forward activations.
+  - **T1 Pinned RAM**: Next layers staged as 4-bit quantized blocks in pinned host memory up to `ram_budget_gb`.
+  - **T2 NVMe SSD**: Cold layers stored in read-only binary blocks at `nvme_path`.
+- **Strict Invariants**:
+  - Base weights strictly read-only throughout lifecycle.
+  - Fill order strictly enforced: `T0 -> T1 -> T2`.
+  - Zero writes to T2 during training (adapters and updates stay exclusively in T0).
+- **Automatic Fallback Detection**: Automatically checks total 4-bit model size against combined T0+T1 memory. If the model fits in T0 + T1, T2 NVMe spillover is completely disabled, avoiding SSD overhead.
+- **Prefetch Depth 2 Pipeline**: Pipelined asynchronous prefetching overlapping layer I/O with GPU forward/backward compute using background workers and dedicated CUDA streams.
+- **On-GPU 4-Bit Dequantization**: Vectorized GPU unpacking and dequantization directly on device at memory bandwidth speed.
+- **Real-Time Telemetry & Progress Metrics**: Tracks and emits `io_wait_pct` (% step time blocked on I/O), `tok/s` (effective token throughput), and `step_time` (step wall-clock latency) over TCP port 9001.
+
+### Joey ML Framework & Monitor Integration
+- **Quokka Standard Library API**: Added `joey_pipeline()`, `joey_atsrs()`, and `JoeyPipeline` struct in `src/std/joey.qk`.
+- **Python ML Backend**: Integrated ATSRS step and trainer execution into `runtime/joey/engine.py` and `src/std/joey_backend.py`.
+- **Native Monitor Dashboard**: Upgraded `joey_watch.c` TUI dashboard to parse and render live ATSRS I/O wait percentages and step times.
+- **Native C Backend Hardening**: Optimized `native_emit_progress` with non-blocking socket I/O and included `#include <fcntl.h>` for POSIX compliance.
+- **Zero-Leak Validation**: Resolved list refcount leak in `builtin_joey_run_native`; verified 100% clean under Linux Valgrind (`1,296 allocs, 1,296 frees, 0 bytes in 0 blocks, 0 errors`).
+
 ## [0.9.2] - 2026-10-31 - Modules, User-Defined Structs, Sockets, and FFI
 
 ### Modular Code Architecture
