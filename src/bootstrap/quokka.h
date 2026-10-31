@@ -336,10 +336,17 @@ typedef enum {
     VAL_LIST,
     VAL_AST_NODE,
     VAL_STRUCT,
+    VAL_CHANNEL,
+    VAL_THREAD,
 } ValueType;
 
-/* Forward declaration */
+/* Forward declarations */
 typedef struct QkStructInstance QkStructInstance;
+typedef struct QkChannel QkChannel;
+typedef struct QkThread QkThread;
+typedef struct Interp Interp;
+
+char *read_file(const char *path);
 
 /* Built-in function pointer type */
 typedef Value (*BuiltinFn)(Value *args, int argc, int line);
@@ -382,6 +389,8 @@ struct Value {
         QkList           *list;
         Node             *ast_node;
         QkStructInstance *struct_val;
+        QkChannel        *channel_val;
+        QkThread         *thread_val;
     } as;
 };
 
@@ -398,6 +407,10 @@ Value val_fn(QkFunction f);
 Value val_builtin(BuiltinFn f);
 Value val_list(void);
 Value val_struct(const char *name, int count, char **names, Value *values);
+Value val_channel(QkChannel *chan);
+Value val_thread(QkThread *th);
+
+Value qk_call_value(Interp *interp, Value callee, Value *args, int argc, int line);
 
 const char *val_type_name(Value v);
 void val_print(Value v);
@@ -435,7 +448,7 @@ void  env_free(Env *env);
  * ============================================================ */
 #define QK_MAX_CALL_DEPTH 2500
 
-typedef struct {
+struct Interp {
     Env *globals;
     Env *current_env;
     bool had_error;
@@ -447,7 +460,7 @@ typedef struct {
     char **imported_modules;
     int module_count;
     int module_cap;
-} Interp;
+};
 
 void  interp_init(Interp *interp);
 Value interp_exec(Interp *interp, Node *node);

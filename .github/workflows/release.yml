@@ -37,7 +37,7 @@ jobs:
           mkdir build
           windres quokka.rc -O coff -o build/quokka.res
           windres guichenotia.rc -O coff -o build/guichenotia.res
-          gcc -std=c11 -Wall -Wextra -Wno-unused-parameter -Wl,--stack,16777216 -o build/quokka.exe src/bootstrap/main.c src/bootstrap/lexer.c src/bootstrap/parser.c src/bootstrap/interpreter.c src/bootstrap/sha256.c src/joey/joey_native.c src/joey/joey_watch.c src/joey/joey_gui.c build/quokka.res -lws2_32 -luser32 -lgdi32 -lcomdlg32
+          gcc -std=c11 -Wall -Wextra -Wno-unused-parameter -Wl,--stack,16777216 -o build/quokka.exe src/bootstrap/main.c src/bootstrap/lexer.c src/bootstrap/parser.c src/bootstrap/interpreter.c src/bootstrap/sha256.c src/bootstrap/concurrency.c src/bootstrap/typecheck.c src/bootstrap/compiler.c src/bootstrap/vm.c src/joey/joey_native.c src/joey/joey_watch.c src/joey/joey_gui.c build/quokka.res -lws2_32 -luser32 -lgdi32 -lcomdlg32
           gcc src/guichenotia_app.c build/guichenotia.res -o build/GUICHENOTIA.exe -mwindows
           Compress-Archive -Path build/quokka.exe, build/GUICHENOTIA.exe, GUICHENOTIA.qka -DestinationPath ${{ matrix.file }}
 
@@ -52,7 +52,7 @@ jobs:
           mkdir -p package/DEBIAN
           echo "Package: quokka" > package/DEBIAN/control
           VERSION="${GITHUB_REF_NAME#v}"
-          echo "Version: ${VERSION:-0.9.3}" >> package/DEBIAN/control
+          echo "Version: ${VERSION:-0.9.4}" >> package/DEBIAN/control
           echo "Section: base" >> package/DEBIAN/control
           echo "Priority: optional" >> package/DEBIAN/control
           echo "Architecture: amd64" >> package/DEBIAN/control

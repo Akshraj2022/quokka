@@ -7,6 +7,8 @@
  *============================================================*/
 
 #include "quokka.h"
+#include "typecheck.h"
+#include "vm.h"
 
 /* ============================================================
  * Utility implementations
@@ -68,7 +70,7 @@ void qk_fatal(const char *fmt, ...) {
  * File reading
  * ============================================================ */
 
-static char *read_file(const char *path) {
+char *read_file(const char *path) {
     FILE *file = fopen(path, "rb");
     if (!file) {
         fprintf(stderr, "Error: Could not open file '%s'\n", path);
@@ -108,7 +110,7 @@ static char *read_file(const char *path) {
  * ============================================================ */
 
 static void repl(void) {
-    printf("Quokka v0.9.3  --  \"If you can read it, you can know what it does.\"\n");
+    printf("Quokka v0.9.4  --  \"If you can read it, you can know what it does.\"\n");
     printf("Type expressions or statements. Ctrl+C to exit.\n\n");
 
     /* We keep one persistent interpreter across REPL lines
@@ -157,19 +159,83 @@ static void repl(void) {
 int main(int argc, char *argv[]) {
     if (argc >= 2) {
         if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-v") == 0) {
-            printf("Quokka v0.9.3\n");
+            printf("Quokka v0.9.4\n");
             return 0;
         }
         if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
-            printf("Quokka Programming Language v0.9.3\n\n");
+            printf("Quokka Programming Language v0.9.4\n\n");
             printf("Usage:\n");
             printf("  quokka                     Start interactive REPL\n");
             printf("  quokka <file.qk>           Execute a script\n");
             printf("  quokka run <file.qk>       Execute a script\n");
+            printf("  quokka --vm <file.qk>      Execute a script via Bytecode VM\n");
+            printf("  quokka --check <file.qk>   Run static type checker\n");
             printf("  quokka watch               Start Joey training monitor\n");
             printf("  quokka --version, -v       Show version\n");
             printf("  quokka --help, -h          Show this help message\n");
             return 0;
+        }
+        if (strcmp(argv[1], "--check") == 0) {
+            if (argc < 3) {
+                fprintf(stderr, "Error: '--check' expects a file path\n");
+                return 1;
+            }
+            char *src = read_file(argv[2]);
+            if (!src) {
+                fprintf(stderr, "Error: Could not read file '%s'\n", argv[2]);
+                return 1;
+            }
+            Parser p;
+            parser_init(&p, src);
+            Node *ast = parser_parse(&p);
+            free(src);
+            if (!ast || p.had_error) {
+                qk_ast_free_all();
+                return 1;
+            }
+            bool ok = qk_typecheck_program(ast);
+            qk_ast_free_all();
+            if (ok) {
+                printf("Typecheck passed: No errors found in %s\n", argv[2]);
+                return 0;
+            } else {
+                return 1;
+            }
+        }
+        if (strcmp(argv[1], "--vm") == 0) {
+            if (argc < 3) {
+                fprintf(stderr, "Error: '--vm' expects a file path\n");
+                return 1;
+            }
+            char *src = read_file(argv[2]);
+            if (!src) {
+                fprintf(stderr, "Error: Could not read file '%s'\n", argv[2]);
+                return 1;
+            }
+            Parser p;
+            parser_init(&p, src);
+            Node *ast = parser_parse(&p);
+            free(src);
+            if (!ast || p.had_error) {
+                qk_ast_free_all();
+                return 1;
+            }
+            Interp interp;
+            interp_init(&interp);
+            QkFunctionObj *fn = qk_compile_ast(ast);
+            if (!fn) {
+                interp_free(&interp);
+                qk_ast_free_all();
+                return 1;
+            }
+            QkVM vm;
+            qk_vm_init(&vm, &interp);
+            QkVMResult res = qk_vm_run(&vm, fn);
+            qk_function_obj_free(fn);
+            qk_vm_free(&vm);
+            interp_free(&interp);
+            qk_ast_free_all();
+            return (res == VM_RESULT_OK) ? 0 : 1;
         }
         if (strcmp(argv[1], "watch") == 0 || (argc >= 3 && strcmp(argv[1], "joey") == 0 && strcmp(argv[2], "status") == 0)) {
             extern int joey_watch_main(void);

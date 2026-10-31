@@ -1,4 +1,7 @@
 #include "quokka.h"
+#include "concurrency.h"
+#include "typecheck.h"
+#include "vm.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -42,8 +45,8 @@ static Value call_value(Value callee, Value *args, int argc, int line) {
             current_interp->had_error = true;
             return val_unit();
         }
-        /* Lexical scoping: new env's parent is the closure env, NOT the call-site env */
-        Env *call_env = env_new(fn->closure_env);
+        /* Lexical scoping: new env's parent is the closure env, or globals if NULL */
+        Env *call_env = env_new(fn->closure_env ? fn->closure_env : current_interp->globals);
         for (int i = 0; i < argc; i++) {
             env_define(call_env, fn->params.items[i].name, args[i], false);
         }
@@ -70,6 +73,14 @@ static Value call_value(Value callee, Value *args, int argc, int line) {
         current_interp->had_error = true;
         return val_unit();
     }
+}
+
+Value qk_call_value(Interp *interp, Value callee, Value *args, int argc, int line) {
+    Interp *prev = current_interp;
+    current_interp = interp;
+    Value res = call_value(callee, args, argc, line);
+    current_interp = prev;
+    return res;
 }
 
 /* ============================================================
@@ -138,6 +149,18 @@ Value val_struct(const char *name, int count, char **names, Value *values) {
     return val;
 }
 
+Value val_channel(QkChannel *chan) {
+    Value val; val.type = VAL_CHANNEL;
+    val.as.channel_val = chan;
+    return val;
+}
+
+Value val_thread(QkThread *th) {
+    Value val; val.type = VAL_THREAD;
+    val.as.thread_val = th;
+    return val;
+}
+
 /* ============================================================
  * Value operations
  * ============================================================ */
@@ -156,6 +179,8 @@ const char *val_type_name(Value v) {
         case VAL_UNIT:    return "Unit";
         case VAL_LIST:    return "List";
         case VAL_STRUCT:  return v.as.struct_val && v.as.struct_val->name ? v.as.struct_val->name : "Struct";
+        case VAL_CHANNEL: return "Channel";
+        case VAL_THREAD:  return "Thread";
         default:          return "Unknown";
     }
 }
@@ -203,6 +228,12 @@ void val_free(Value v) {
                 }
             }
             break;
+        case VAL_CHANNEL:
+            if (v.as.channel_val) qk_channel_free(v.as.channel_val);
+            break;
+        case VAL_THREAD:
+            if (v.as.thread_val) qk_thread_free(v.as.thread_val);
+            break;
         default:
             break;
     }
@@ -243,6 +274,8 @@ void val_print(Value v) {
             printf(" }");
             break;
         }
+        case VAL_CHANNEL: printf("<channel>"); break;
+        case VAL_THREAD:  printf("<thread>"); break;
     }
 }
 
@@ -278,6 +311,8 @@ bool val_equal(Value a, Value b) {
             }
             return true;
         }
+        case VAL_CHANNEL: return a.as.channel_val == b.as.channel_val;
+        case VAL_THREAD:  return a.as.thread_val == b.as.thread_val;
         default: return false;
     }
 }
@@ -304,6 +339,12 @@ Value val_clone(Value v) {
             return v;
         case VAL_STRUCT:
             if (v.as.struct_val) v.as.struct_val->refcount++;
+            return v;
+        case VAL_CHANNEL:
+            if (v.as.channel_val) v.as.channel_val->refcount++;
+            return v;
+        case VAL_THREAD:
+            if (v.as.thread_val) v.as.thread_val->refcount++;
             return v;
         default: return v;
     }
@@ -448,12 +489,32 @@ static Value builtin_println(Value *args, int argc, int line) {
 static Value builtin_to_string(Value *args, int argc, int line) {
     (void)line;
     if (argc != 1) return val_string("");
-    char buf[256];
+    char buf[512];
     switch (args[0].type) {
         case VAL_INT:    snprintf(buf, sizeof(buf), "%lld", (long long)args[0].as.int_val); return val_string(buf);
         case VAL_FLOAT:  snprintf(buf, sizeof(buf), "%g", args[0].as.float_val);            return val_string(buf);
         case VAL_BOOL:   return val_string(args[0].as.bool_val ? "true" : "false");
         case VAL_STRING: return val_clone(args[0]);
+        case VAL_UNIT:   return val_string("()");
+        case VAL_NONE:   return val_string("None");
+        case VAL_SOME: {
+            Value s = builtin_to_string(args[0].as.inner, 1, line);
+            snprintf(buf, sizeof(buf), "Some(%s)", s.as.string_val);
+            val_free(s);
+            return val_string(buf);
+        }
+        case VAL_OK: {
+            Value s = builtin_to_string(args[0].as.inner, 1, line);
+            snprintf(buf, sizeof(buf), "Ok(%s)", s.as.string_val);
+            val_free(s);
+            return val_string(buf);
+        }
+        case VAL_ERR: {
+            Value s = builtin_to_string(args[0].as.inner, 1, line);
+            snprintf(buf, sizeof(buf), "Err(%s)", s.as.string_val);
+            val_free(s);
+            return val_string(buf);
+        }
         case VAL_STRUCT: snprintf(buf, sizeof(buf), "<struct %s>", args[0].as.struct_val && args[0].as.struct_val->name ? args[0].as.struct_val->name : ""); return val_string(buf);
         default:         return val_string("<value>");
     }
@@ -895,6 +956,117 @@ static Value builtin_ffi_available(Value *args, int argc, int line) {
     void *sym = dlsym(ffi_handles[idx], args[1].as.string_val);
 #endif
     return val_bool(sym != NULL);
+}
+
+static Value builtin_channel_new(Value *args, int argc, int line) {
+    (void)line;
+    int cap = 1;
+    if (argc >= 1 && args[0].type == VAL_INT) {
+        cap = (int)args[0].as.int_val;
+    }
+    QkChannel *chan = qk_channel_new(cap);
+    return val_channel(chan);
+}
+
+static Value builtin_channel_send(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 2 || args[0].type != VAL_CHANNEL) {
+        return val_err(val_string("channel_send expects Channel and Value"));
+    }
+    bool ok = qk_channel_send(args[0].as.channel_val, args[1]);
+    if (!ok) return val_err(val_string("Channel closed"));
+    return val_ok(val_bool(true));
+}
+
+static Value builtin_channel_recv(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_CHANNEL) {
+        return val_err(val_string("channel_recv expects Channel"));
+    }
+    Value out_val = val_unit();
+    bool ok = qk_channel_recv(args[0].as.channel_val, &out_val);
+    if (!ok) return val_err(val_string("Channel closed"));
+    Value res = val_ok(out_val);
+    val_free(out_val);
+    return res;
+}
+
+static Value builtin_channel_close(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_CHANNEL) {
+        return val_err(val_string("channel_close expects Channel"));
+    }
+    qk_channel_close(args[0].as.channel_val);
+    return val_ok(val_bool(true));
+}
+
+static Value builtin_thread_spawn(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || (args[0].type != VAL_FN && args[0].type != VAL_BUILTIN)) {
+        return val_err(val_string("thread_spawn expects Function"));
+    }
+    QkThread *th = qk_thread_spawn(args[0]);
+    if (!th) return val_err(val_string("Failed to spawn thread"));
+    return val_thread(th);
+}
+
+static Value builtin_thread_join(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_THREAD) {
+        return val_err(val_string("thread_join expects Thread"));
+    }
+    Value res = qk_thread_join(args[0].as.thread_val);
+    Value ok_res = val_ok(res);
+    val_free(res);
+    return ok_res;
+}
+
+static Value builtin_typecheck(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_STRING) {
+        return val_err(val_string("typecheck expects file path string"));
+    }
+    char *src = read_file(args[0].as.string_val);
+    if (!src) return val_err(val_string("Could not read file"));
+    Parser p;
+    parser_init(&p, src);
+    Node *ast = parser_parse(&p);
+    free(src);
+    if (!ast || p.had_error) {
+        if (ast) node_free(ast);
+        return val_err(val_string("Parse error"));
+    }
+    bool ok = qk_typecheck_program(ast);
+    node_free(ast);
+    return val_ok(val_bool(ok));
+}
+
+static Value builtin_vm_eval(Value *args, int argc, int line) {
+    (void)line;
+    if (argc != 1 || args[0].type != VAL_STRING) {
+        return val_err(val_string("vm_eval expects file path string"));
+    }
+    char *src = read_file(args[0].as.string_val);
+    if (!src) return val_err(val_string("Could not read file"));
+    Parser p;
+    parser_init(&p, src);
+    Node *ast = parser_parse(&p);
+    free(src);
+    if (!ast || p.had_error) {
+        if (ast) node_free(ast);
+        return val_err(val_string("Parse error"));
+    }
+    QkFunctionObj *fn = qk_compile_ast(ast);
+    node_free(ast);
+    if (!fn) return val_err(val_string("Compilation failed"));
+
+    QkVM vm;
+    qk_vm_init(&vm, current_interp);
+    QkVMResult res = qk_vm_run(&vm, fn);
+    qk_function_obj_free(fn);
+    qk_vm_free(&vm);
+
+    return (res == VM_RESULT_OK) ? val_ok(val_bool(true)) : val_err(val_string("VM execution error"));
 }
 
 static Value builtin_list_set(Value *args, int argc, int line) {
@@ -1343,6 +1515,15 @@ extern Value builtin_joey_start_gui(Value *args, int argc, int line);
     env_define(interp->globals, "ffi_open",       val_builtin(builtin_ffi_open),       false);
     env_define(interp->globals, "ffi_close",      val_builtin(builtin_ffi_close),      false);
     env_define(interp->globals, "ffi_available",  val_builtin(builtin_ffi_available),  false);
+
+    env_define(interp->globals, "channel_new",   val_builtin(builtin_channel_new),   false);
+    env_define(interp->globals, "channel_send",  val_builtin(builtin_channel_send),  false);
+    env_define(interp->globals, "channel_recv",  val_builtin(builtin_channel_recv),  false);
+    env_define(interp->globals, "channel_close", val_builtin(builtin_channel_close), false);
+    env_define(interp->globals, "thread_spawn",  val_builtin(builtin_thread_spawn),  false);
+    env_define(interp->globals, "thread_join",   val_builtin(builtin_thread_join),   false);
+    env_define(interp->globals, "typecheck",     val_builtin(builtin_typecheck),     false);
+    env_define(interp->globals, "vm_eval",       val_builtin(builtin_vm_eval),       false);
 
     env_define(interp->globals, "parse_native", val_builtin(builtin_parse_native), false);
     env_define(interp->globals, "eval_native", val_builtin(builtin_eval_native), false);

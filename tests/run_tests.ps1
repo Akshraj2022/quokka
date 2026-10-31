@@ -29,6 +29,13 @@ foreach ($t in $tests) {
 }
 
 if ($all_passed) {
+    if (Get-Command python -ErrorAction SilentlyContinue) {
+        python (Join-Path $scriptDir "test_100_ways.py")
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "100-way tests failed." -ForegroundColor Red
+            exit 1
+        }
+    }
     Write-Host "All tests passed!" -ForegroundColor Green
 } else {
     Write-Host "Some tests failed." -ForegroundColor Red
