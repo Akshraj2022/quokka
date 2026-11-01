@@ -1,0 +1,32 @@
+// 12_networking_sockets.qk - Conformance test for network sockets and HTTP primitives
+
+import "src/std/net.qk" as net_mod
+
+fn test_sockets() {
+    // Attempting to connect to an unused port should safely return Err, not crash
+    let res = socket_connect("127.0.0.1", 59999)
+    match res {
+        Ok(sock) => {
+            socket_close(sock)
+        },
+        Err(e) => {
+            // Expected fallback when local port is closed
+            if len(e) == 0 {
+                panic("Error message should not be empty")
+            }
+        }
+    }
+
+    // Test HTTP Response parsing from raw wire protocol
+    let raw = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 13\r\n\r\n{\"status\":1}"
+    let parsed = net_mod.parse_http_response(raw)
+    if parsed.status != 200 {
+        panic("HTTP status mismatch")
+    }
+    if parsed.body != "{\"status\":1}" {
+        panic("HTTP body mismatch")
+    }
+}
+
+test_sockets()
+println("Networking sockets test passed")

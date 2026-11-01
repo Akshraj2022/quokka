@@ -432,6 +432,67 @@ static void compile_node(Compiler *c, Node *node) {
             break;
         }
 
+        case NODE_LAMBDA: {
+            QkFunction fn;
+            fn.name = qk_strdup("<lambda>");
+            fn.params = node->as.lambda.params;
+            fn.body = node->as.lambda.body;
+            fn.closure_env = NULL;
+            Value fn_val = val_fn(fn);
+
+            int val_const = qk_chunk_add_constant(&c->function->chunk, fn_val);
+            emit_byte(c, OP_CONSTANT, line);
+            emit_byte(c, (uint8_t)(val_const & 0xFF), line);
+            emit_byte(c, (uint8_t)((val_const >> 8) & 0xFF), line);
+            break;
+        }
+
+        case NODE_IMPORT: {
+            const char *path = node->as.import_stmt.path;
+            if (!path) break;
+
+            char candidate[512];
+            const char *found_path = NULL;
+            FILE *tf = fopen(path, "rb");
+            if (tf) { fclose(tf); found_path = path; }
+            else {
+                snprintf(candidate, sizeof(candidate), "%s.qk", path);
+                tf = fopen(candidate, "rb");
+                if (tf) { fclose(tf); found_path = candidate; }
+                else {
+                    snprintf(candidate, sizeof(candidate), "src/std/%s.qk", path);
+                    tf = fopen(candidate, "rb");
+                    if (tf) { fclose(tf); found_path = candidate; }
+                    else {
+                        snprintf(candidate, sizeof(candidate), "src/std/%s.qka", path);
+                        tf = fopen(candidate, "rb");
+                        if (tf) { fclose(tf); found_path = candidate; }
+                    }
+                }
+            }
+            if (!found_path) break;
+
+            FILE *mf = fopen(found_path, "rb");
+            if (!mf) break;
+            fseek(mf, 0, SEEK_END);
+            long sz = ftell(mf);
+            fseek(mf, 0, SEEK_SET);
+            if (sz <= 0) { fclose(mf); break; }
+            char *src = qk_malloc((size_t)sz + 1);
+            size_t rd = fread(src, 1, (size_t)sz, mf);
+            src[rd] = '\0';
+            fclose(mf);
+
+            Parser mp;
+            parser_init(&mp, src);
+            Node *m_ast = parser_parse(&mp);
+            free(src);
+            if (m_ast && !mp.had_error) {
+                compile_node(c, m_ast);
+            }
+            break;
+        }
+
         case NODE_STRUCT_DEF: {
             QkFunction fn;
             fn.name = qk_strdup(node->as.struct_def.name);

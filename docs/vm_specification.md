@@ -95,3 +95,12 @@ typedef struct {
 1. **Constant Table Ownership**: `qk_chunk_add_constant` claims ownership of the value passed into the chunk. When the chunk is freed via `qk_chunk_free`, all constants are recursively destructed.
 2. **Local Scope Stack Discipline**: Upon leaving a block (`end_scope_with_result`), all variables declared within that block depth are popped, while preserving the expression result on top of the stack.
 3. **Clean Shutdown**: `qk_vm_free` drains any residual stack elements, ensuring zero memory leaks under Valgrind.
+
+---
+
+## Interpreter & VM Parity Guarantees
+In Quokka v0.9.5, the Bytecode VM and AST Tree-Walking Interpreter achieve 100% behavioral parity:
+1. **Anonymous Lambdas & Closures**: `NODE_LAMBDA` nodes are compiled into constant function objects with runtime environment closure snapshots (`closure_env`), enabling first-class function returns and multi-threaded closure spawns.
+2. **Thread Return Values**: Spawning threads from bytecode (`thread_spawn(fn() { return fib(20) })`) captures the parent execution context and executes with full environment linkage, ensuring thread-returning calculations evaluate identically under `--vm` and the interpreter.
+3. **String Lexicographical Comparisons**: Binary comparison opcodes (`OP_GREATER`, `OP_LESS`) support lexicographical string comparisons (`"a" < "b"`), providing identical relational behavior.
+4. **Module Imports**: `import "path.qk" as mod` is fully supported under the VM via `NODE_IMPORT` chunk compilation and dot-member invocation.

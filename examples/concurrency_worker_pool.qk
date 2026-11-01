@@ -1,0 +1,59 @@
+// examples/concurrency_worker_pool.qk
+// Demonstrates a thread worker pool communicating over MPSC channels
+
+struct Job { id, data }
+struct Result { id, processed }
+
+fn worker(in_chan, out_chan) {
+    let mut running = true
+    while running {
+        let msg = channel_recv(in_chan)
+        match msg {
+            Ok(job) => {
+                let res = Result(job.id, job.data * job.data)
+                channel_send(out_chan, res)
+            },
+            Err(_) => {
+                running = false
+            }
+        }
+    }
+    return 0
+}
+
+fn main() {
+    let in_chan = channel_new(20)
+    let out_chan = channel_new(20)
+
+    // Spawn 3 worker threads
+    let w1 = thread_spawn(fn() { return worker(in_chan, out_chan) })
+    let w2 = thread_spawn(fn() { return worker(in_chan, out_chan) })
+    let w3 = thread_spawn(fn() { return worker(in_chan, out_chan) })
+
+    // Dispatch 6 jobs
+    let mut i = 1
+    while i <= 6 {
+        channel_send(in_chan, Job(i, i * 10))
+        i = i + 1
+    }
+
+    // Collect 6 results
+    let mut collected = 0
+    let mut total = 0
+    while collected < 6 {
+        let res = unwrap_or(channel_recv(out_chan), Result(0, 0))
+        total = total + res.processed
+        collected = collected + 1
+    }
+
+    // Shutdown workers
+    channel_close(in_chan)
+    unwrap_or(thread_join(w1), 0)
+    unwrap_or(thread_join(w2), 0)
+    unwrap_or(thread_join(w3), 0)
+    channel_close(out_chan)
+
+    println("Worker pool processed 6 jobs with total = " ++ to_string(total))
+}
+
+main()

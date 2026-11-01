@@ -1,0 +1,26 @@
+// examples/json_processor.qk
+// Demonstrates reading, parsing, mutating, and stringifying JSON data
+
+import "src/std/json.qk" as json
+
+fn main() {
+    let raw_payload = "{\"model\": \"llama-3-8b\", \"batch_size\": 32, \"learning_rate\": 0.0002}"
+    println("Raw input: " ++ raw_payload)
+
+    let parsed = match json.json_parse(raw_payload) {
+        Ok(obj) => obj,
+        Err(e)  => panic("Invalid JSON: " ++ e),
+    }
+
+    let model = unwrap_or(json.json_object_get(parsed, "model"), "unknown")
+    let batch = unwrap_or(json.json_object_get(parsed, "batch_size"), 1)
+    println("Configured Model: " ++ model ++ " (Batch Size: " ++ to_string(batch) ++ ")")
+
+    // Update object fields
+    json.json_object_set(parsed, "status", "training_started")
+
+    let export_text = json.json_stringify(parsed)
+    println("Exported JSON: " ++ export_text)
+}
+
+main()

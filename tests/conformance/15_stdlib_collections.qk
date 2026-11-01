@@ -1,0 +1,48 @@
+// 15_stdlib_collections.qk - Conformance test for std::collections
+
+import "src/std/collections.qk" as coll_mod
+
+fn test_collections() {
+    // Queue test (FIFO)
+    let q = coll_mod.queue_new()
+    coll_mod.queue_push(q, 10)
+    coll_mod.queue_push(q, 20)
+    coll_mod.queue_push(q, 30)
+
+    if coll_mod.queue_len(q) != 3 {
+        panic("Queue length mismatch")
+    }
+
+    // Stack test (LIFO)
+    let s = coll_mod.stack_new()
+    coll_mod.stack_push(s, "first")
+    coll_mod.stack_push(s, "second")
+    if coll_mod.stack_len(s) != 2 {
+        panic("Stack length mismatch")
+    }
+
+    // Functional list processing
+    let nums = [1, 2, 3, 4, 5]
+    let doubled = coll_mod.map_list(nums, fn(x) { return x * 2 })
+    if doubled[0] != 2 or doubled[4] != 10 {
+        panic("map_list mismatch")
+    }
+
+    let evens = coll_mod.filter_list(nums, fn(x) { return x % 2 == 0 })
+    if len(evens) != 2 or evens[0] != 2 or evens[1] != 4 {
+        panic("filter_list mismatch")
+    }
+
+    let sum = coll_mod.reduce_list(nums, fn(acc, x) { return acc + x }, 0)
+    if sum != 15 {
+        panic("reduce_list mismatch")
+    }
+
+    let rev = coll_mod.reverse_list([10, 20, 30])
+    if rev[0] != 30 or rev[1] != 20 or rev[2] != 10 {
+        panic("reverse_list mismatch")
+    }
+}
+
+test_collections()
+println("Stdlib collections test passed")

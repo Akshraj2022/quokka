@@ -1,0 +1,32 @@
+// 18_vm_parity.qk - Verifies parity between interpreter and bytecode VM
+
+fn fib(n) {
+    if n <= 1 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+fn thread_calc() {
+    let t = thread_spawn(fn() { return fib(20) })
+    let r = thread_join(t)
+    return unwrap_or(r, 0)
+}
+
+fn test_vm_parity() {
+    let v = thread_calc()
+    if v != 6765 {
+        panic("Thread calculation parity failed")
+    }
+
+    // Pattern matching parity
+    let opt = Some(100)
+    let matched = match opt {
+        Some(x) => x * 2,
+        None => 0
+    }
+    if matched != 200 {
+        panic("Match parity failed")
+    }
+}
+
+test_vm_parity()
+println("VM parity test passed")

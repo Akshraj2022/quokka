@@ -1,0 +1,266 @@
+// Quokka Standard Library: collections.qk
+// Data structures and functional collection utilities
+
+struct Queue { items, head }
+struct Stack { items }
+struct Set { items }
+
+// --- Functional Collection Operations ---
+
+fn map_list(list, transform) {
+    let mut res = []
+    let n = len(list)
+    let mut i = 0
+    while i < n {
+        push(res, transform(list[i]))
+        i = i + 1
+    }
+    return res
+}
+
+fn filter_list(list, predicate) {
+    let mut res = []
+    let n = len(list)
+    let mut i = 0
+    while i < n {
+        let item = list[i]
+        if predicate(item) {
+            push(res, item)
+        }
+        i = i + 1
+    }
+    return res
+}
+
+fn reduce_list(list, reducer, initial) {
+    let mut acc = initial
+    let n = len(list)
+    let mut i = 0
+    while i < n {
+        acc = reducer(acc, list[i])
+        i = i + 1
+    }
+    return acc
+}
+
+fn find_item(list, predicate) {
+    let n = len(list)
+    let mut i = 0
+    while i < n {
+        if predicate(list[i]) {
+            return Some(list[i])
+        }
+        i = i + 1
+    }
+    return None
+}
+
+fn any_match(list, predicate) {
+    let n = len(list)
+    let mut i = 0
+    while i < n {
+        if predicate(list[i]) {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn all_match(list, predicate) {
+    let n = len(list)
+    let mut i = 0
+    while i < n {
+        if not predicate(list[i]) {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+fn reverse_list(list) {
+    let mut res = []
+    let n = len(list)
+    let mut i = n - 1
+    while i >= 0 {
+        push(res, list[i])
+        i = i - 1
+    }
+    return res
+}
+
+fn zip_lists(a, b) {
+    let mut res = []
+    let na = len(a)
+    let nb = len(b)
+    let limit = if na < nb { na } else { nb }
+    let mut i = 0
+    while i < limit {
+        push(res, [a[i], b[i]])
+        i = i + 1
+    }
+    return res
+}
+
+fn flatten_list(list_of_lists) {
+    let mut res = []
+    let n = len(list_of_lists)
+    let mut i = 0
+    while i < n {
+        let sub = list_of_lists[i]
+        let sub_len = len(sub)
+        let mut j = 0
+        while j < sub_len {
+            push(res, sub[j])
+            j = j + 1
+        }
+        i = i + 1
+    }
+    return res
+}
+
+fn slice_list(list, start, count) {
+    let mut res = []
+    let n = len(list)
+    let end_idx = start + count
+    let limit = if end_idx > n { n } else { end_idx }
+    let mut i = start
+    while i < limit {
+        push(res, list[i])
+        i = i + 1
+    }
+    return res
+}
+
+fn chunk_list(list, size) {
+    let mut res = []
+    let n = len(list)
+    if size <= 0 { return res }
+    let mut i = 0
+    while i < n {
+        push(res, slice_list(list, i, size))
+        i = i + size
+    }
+    return res
+}
+
+fn contains_item(list, target) {
+    let n = len(list)
+    let mut i = 0
+    while i < n {
+        if list[i] == target {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+fn unique_list(list) {
+    let mut res = []
+    let n = len(list)
+    let mut i = 0
+    while i < n {
+        let item = list[i]
+        if not contains_item(res, item) {
+            push(res, item)
+        }
+        i = i + 1
+    }
+    return res
+}
+
+// --- Data Structures ---
+
+fn queue_new() {
+    return Queue([], 0)
+}
+
+fn queue_push(q, item) {
+    push(q.items, item)
+}
+
+fn queue_pop(q) {
+    if q.head >= len(q.items) {
+        return None
+    }
+    let val = q.items[q.head]
+    q.head = q.head + 1
+    return Some(val)
+}
+
+fn queue_peek(q) {
+    if q.head >= len(q.items) {
+        return None
+    }
+    return Some(q.items[q.head])
+}
+
+fn queue_len(q) {
+    let rem = len(q.items) - q.head
+    return if rem > 0 { rem } else { 0 }
+}
+
+fn stack_new() {
+    return Stack([])
+}
+
+fn stack_push(s, item) {
+    push(s.items, item)
+}
+
+fn stack_pop(s) {
+    let n = len(s.items)
+    if n == 0 { return None }
+    let val = s.items[n - 1]
+    let mut new_items = []
+    let mut i = 0
+    while i < n - 1 {
+        push(new_items, s.items[i])
+        i = i + 1
+    }
+    s.items = new_items
+    return Some(val)
+}
+
+fn stack_peek(s) {
+    let n = len(s.items)
+    if n == 0 { return None }
+    return Some(s.items[n - 1])
+}
+
+fn stack_len(s) {
+    return len(s.items)
+}
+
+fn set_new() {
+    return Set([])
+}
+
+fn set_add(s, item) {
+    if not contains_item(s.items, item) {
+        push(s.items, item)
+    }
+}
+
+fn set_has(s, item) {
+    return contains_item(s.items, item)
+}
+
+fn set_remove(s, item) {
+    let mut new_items = []
+    let n = len(s.items)
+    let mut i = 0
+    while i < n {
+        if s.items[i] != item {
+            push(new_items, s.items[i])
+        }
+        i = i + 1
+    }
+    s.items = new_items
+}
+
+fn set_to_list(s) {
+    return s.items
+}

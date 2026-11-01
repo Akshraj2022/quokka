@@ -1,0 +1,40 @@
+// examples/struct_geometry.qk
+// Demonstrates 2D geometry algorithms with Point, Rect, and transformations
+
+struct Point { x, y }
+struct Rect { origin, width, height }
+
+fn rect_area(r) {
+    return r.width * r.height
+}
+
+fn rect_contains_point(r, p) {
+    if p.x < r.origin.x or p.x > r.origin.x + r.width {
+        return false
+    }
+    if p.y < r.origin.y or p.y > r.origin.y + r.height {
+        return false
+    }
+    return true
+}
+
+fn rect_translate(r, dx, dy) {
+    let new_origin = Point(r.origin.x + dx, r.origin.y + dy)
+    return Rect(new_origin, r.width, r.height)
+}
+
+fn main() {
+    let p1 = Point(5, 5)
+    let p2 = Point(25, 25)
+    let r1 = Rect(Point(0, 0), 20, 10)
+
+    println("Rectangle area: " ++ to_string(rect_area(r1)))
+    println("r1 contains (5, 5): " ++ to_string(rect_contains_point(r1, p1)))
+    println("r1 contains (25, 25): " ++ to_string(rect_contains_point(r1, p2)))
+
+    let r2 = rect_translate(r1, 10, 15)
+    println("After translate by (10, 15):")
+    println("r2 contains (25, 25): " ++ to_string(rect_contains_point(r2, p2)))
+}
+
+main()

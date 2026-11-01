@@ -1,0 +1,56 @@
+// Quokka Standard Library: pkg.qk
+// Package Manager & Manifest Utilities
+
+struct PackageManifest {
+    name,
+    version,
+    description,
+    main_file,
+    dependencies
+}
+
+fn manifest_new(name, version, description, main_file) {
+    return PackageManifest(
+        name,
+        version,
+        description,
+        main_file,
+        []
+    )
+}
+
+fn manifest_to_string(m) {
+    let mut out = "{\n"
+    out = out ++ "    \"name\": \"" ++ m.name ++ "\",\n"
+    out = out ++ "    \"version\": \"" ++ m.version ++ "\",\n"
+    out = out ++ "    \"description\": \"" ++ m.description ++ "\",\n"
+    out = out ++ "    \"main\": \"" ++ m.main_file ++ "\",\n"
+    out = out ++ "    \"dependencies\": {\n"
+    
+    let n = len(m.dependencies)
+    let mut i = 0
+    while i < n {
+        let dep = m.dependencies[i]
+        out = out ++ "        \"" ++ dep[0] ++ "\": \"" ++ dep[1] ++ "\""
+        if i < n - 1 { out = out ++ "," }
+        out = out ++ "\n"
+        i = i + 1
+    }
+    out = out ++ "    }\n}"
+    return out
+}
+
+fn init_package(name, version) {
+    let m = manifest_new(
+        name,
+        version,
+        "A Quokka project",
+        "main.qka"
+    )
+    let json_text = manifest_to_string(m)
+    let res = file_write("quokka.json", json_text)
+    return match res {
+        Ok(_)  => Ok("Created quokka.json successfully!"),
+        Err(e) => Err("Failed to create quokka.json: " ++ e),
+    }
+}

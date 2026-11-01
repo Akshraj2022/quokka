@@ -115,6 +115,12 @@ static Value qk_vm_peek(QkVM *vm, int distance) {
 QkVMResult qk_vm_run(QkVM *vm, QkFunctionObj *main_fn) {
     if (!main_fn) return VM_RESULT_COMPILE_ERROR;
 
+    Interp *prev_interp = qk_get_current_interp();
+    if (vm->interp) {
+        qk_set_current_interp(vm->interp);
+    }
+#define QK_VM_RET(code) do { qk_set_current_interp(prev_interp); return (code); } while(0)
+
     vm->frame_count = 1;
     CallFrame *frame = &vm->frames[0];
     frame->function = main_fn;
@@ -132,7 +138,11 @@ QkVMResult qk_vm_run(QkVM *vm, QkFunctionObj *main_fn) {
                 uint16_t idx = (uint16_t)(*frame->ip++);
                 idx |= (uint16_t)((*frame->ip++) << 8);
                 Value constant = frame->function->chunk.constants[idx];
-                qk_vm_push(vm, val_clone(constant));
+                Value val = val_clone(constant);
+                if (val.type == VAL_FN && !val.as.fn.closure_env && (val.as.fn.name == NULL || strcmp(val.as.fn.name, "<lambda>") == 0)) {
+                    val.as.fn.closure_env = env_snapshot(vm->interp ? (vm->interp->current_env ? vm->interp->current_env : vm->interp->globals) : vm->globals);
+                }
+                qk_vm_push(vm, val);
                 break;
             }
 
@@ -172,7 +182,7 @@ QkVMResult qk_vm_run(QkVM *vm, QkFunctionObj *main_fn) {
                 Value *v = env_get(vm->globals, name);
                 if (!v) {
                     fprintf(stderr, "Undefined global variable '%s'\n", name);
-                    return VM_RESULT_RUNTIME_ERROR;
+                    QK_VM_RET(VM_RESULT_RUNTIME_ERROR);
                 }
                 qk_vm_push(vm, val_clone(*v));
                 break;
@@ -250,7 +260,7 @@ QkVMResult qk_vm_run(QkVM *vm, QkFunctionObj *main_fn) {
                 if (b.type == VAL_INT && b.as.int_val == 0) {
                     fprintf(stderr, "Division by zero\n");
                     val_free(a); val_free(b);
-                    return VM_RESULT_RUNTIME_ERROR;
+                    QK_VM_RET(VM_RESULT_RUNTIME_ERROR);
                 }
                 if (a.type == VAL_INT && b.type == VAL_INT) {
                     qk_vm_push(vm, val_int(a.as.int_val / b.as.int_val));
@@ -269,7 +279,7 @@ QkVMResult qk_vm_run(QkVM *vm, QkFunctionObj *main_fn) {
                 if (b.as.int_val == 0) {
                     fprintf(stderr, "Modulo by zero\n");
                     val_free(a); val_free(b);
-                    return VM_RESULT_RUNTIME_ERROR;
+                    QK_VM_RET(VM_RESULT_RUNTIME_ERROR);
                 }
                 qk_vm_push(vm, val_int(a.as.int_val % b.as.int_val));
                 val_free(a); val_free(b);
@@ -309,6 +319,8 @@ QkVMResult qk_vm_run(QkVM *vm, QkFunctionObj *main_fn) {
                     double da = a.type == VAL_FLOAT ? a.as.float_val : (double)a.as.int_val;
                     double db = b.type == VAL_FLOAT ? b.as.float_val : (double)b.as.int_val;
                     qk_vm_push(vm, val_bool(da > db));
+                } else if (a.type == VAL_STRING && b.type == VAL_STRING) {
+                    qk_vm_push(vm, val_bool(strcmp(a.as.string_val, b.as.string_val) > 0));
                 } else {
                     qk_vm_push(vm, val_bool(false));
                 }
@@ -325,6 +337,8 @@ QkVMResult qk_vm_run(QkVM *vm, QkFunctionObj *main_fn) {
                     double da = a.type == VAL_FLOAT ? a.as.float_val : (double)a.as.int_val;
                     double db = b.type == VAL_FLOAT ? b.as.float_val : (double)b.as.int_val;
                     qk_vm_push(vm, val_bool(da < db));
+                } else if (a.type == VAL_STRING && b.type == VAL_STRING) {
+                    qk_vm_push(vm, val_bool(strcmp(a.as.string_val, b.as.string_val) < 0));
                 } else {
                     qk_vm_push(vm, val_bool(false));
                 }
@@ -527,7 +541,7 @@ QkVMResult qk_vm_run(QkVM *vm, QkFunctionObj *main_fn) {
                     qk_vm_push(vm, res);
                 } else {
                     fprintf(stderr, "Attempted to call non-function value\n");
-                    return VM_RESULT_RUNTIME_ERROR;
+                    QK_VM_RET(VM_RESULT_RUNTIME_ERROR);
                 }
                 break;
             }
@@ -537,7 +551,7 @@ QkVMResult qk_vm_run(QkVM *vm, QkFunctionObj *main_fn) {
                 vm->frame_count--;
                 if (vm->frame_count == 0) {
                     val_free(res);
-                    return VM_RESULT_OK;
+                    QK_VM_RET(VM_RESULT_OK);
                 }
                 frame = &vm->frames[vm->frame_count - 1];
                 qk_vm_push(vm, res);
@@ -545,11 +559,11 @@ QkVMResult qk_vm_run(QkVM *vm, QkFunctionObj *main_fn) {
             }
 
             case OP_HALT:
-                return VM_RESULT_OK;
+                QK_VM_RET(VM_RESULT_OK);
 
             default:
                 fprintf(stderr, "Unknown VM opcode: %02x\n", instruction);
-                return VM_RESULT_RUNTIME_ERROR;
+                QK_VM_RET(VM_RESULT_RUNTIME_ERROR);
         }
     }
 }

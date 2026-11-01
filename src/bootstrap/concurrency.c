@@ -146,9 +146,17 @@ static void execute_thread_job(QkThread *thread) {
     Interp thread_interp;
     interp_init(&thread_interp);
 
+    if (thread->parent_env) {
+        thread_interp.globals->parent = thread->parent_env;
+    }
+
     Value ret = qk_call_value(&thread_interp, thread->fn_val, NULL, 0, 0);
     thread->result = val_clone(ret);
     val_free(ret);
+
+    if (thread->parent_env) {
+        thread_interp.globals->parent = NULL;
+    }
 
     interp_free(&thread_interp);
     thread->completed = true;
@@ -175,9 +183,13 @@ QkThread *qk_thread_spawn(Value fn_val) {
     thread->completed = false;
     thread->refcount = 1;
 
+    Interp *cur = qk_get_current_interp();
+    thread->parent_env = (cur && cur->globals) ? env_snapshot(cur->current_env ? cur->current_env : cur->globals) : NULL;
+
 #ifdef _WIN32
     thread->handle = CreateThread(NULL, 0, win32_thread_proc, thread, 0, &thread->thread_id);
     if (!thread->handle) {
+        if (thread->parent_env) env_free(thread->parent_env);
         val_free(thread->fn_val);
         free(thread);
         return NULL;
@@ -185,6 +197,7 @@ QkThread *qk_thread_spawn(Value fn_val) {
 #else
     int rc = pthread_create(&thread->thread, NULL, posix_thread_proc, thread);
     if (rc != 0) {
+        if (thread->parent_env) env_free(thread->parent_env);
         val_free(thread->fn_val);
         free(thread);
         return NULL;
@@ -222,6 +235,11 @@ void qk_thread_free(QkThread *thread) {
         thread->handle = NULL;
     }
 #endif
+
+    if (thread->parent_env) {
+        env_free(thread->parent_env);
+        thread->parent_env = NULL;
+    }
 
     val_free(thread->fn_val);
     val_free(thread->result);

@@ -1,0 +1,23 @@
+// 08_modules_imports.qk - Conformance test for module importing
+
+import "src/std/string.qk" as str_mod
+
+fn test_imports() {
+    let s = "hello,world,test"
+    let parts = str_mod.split(s, ",")
+    if len(parts) != 3 {
+        panic("Module function call failed: wrong split length")
+    }
+
+    if parts[0] != "hello" or parts[1] != "world" or parts[2] != "test" {
+        panic("Module function call failed: wrong parts")
+    }
+
+    let joined = str_mod.join(parts, "-")
+    if joined != "hello-world-test" {
+        panic("Module function call failed: wrong join result")
+    }
+}
+
+test_imports()
+println("Modules and imports test passed")

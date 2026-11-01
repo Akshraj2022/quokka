@@ -5,7 +5,7 @@
 
   <p><a href="https://quokka.space">Visit quokka.space</a></p>
 
-  [![Version](https://img.shields.io/badge/version-v0.9.4-blue.svg)](https://quokka.space)
+  [![Version](https://img.shields.io/badge/version-v0.9.5-blue.svg)](https://quokka.space)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://quokka.space)
 </div>
@@ -19,7 +19,15 @@ Quokka is a modern, expression-oriented programming language designed with an un
 * **Verifiably Self-Hosted**: The lexer, parser, AST, and evaluator are implemented in Quokka. The C-based bootstrap host parses the initial source, but we cryptographically verify that the C parser and Quokka parser produce identical ASTs.
 * **Bytecode Compiler & Stack Virtual Machine**: Ultra-fast chunk-based bytecode compilation and stack VM (`OP_ADD`, `OP_CALL`, `OP_GET_LOCAL`, etc.) via `quokka --vm <file.qk>` and `vm_eval()`.
 * **Static Type Checker**: Compile-time type inference and validation (`quokka --check <file.qk>` and `typecheck()`) verifying type compatibility, struct field integrity, arity, and function signatures.
-* **Cross-Platform Concurrency Primitives**: Native OS threads (`thread_spawn`, `thread_join`) and thread-safe buffered/unbuffered channels (`channel_new`, `channel_send`, `channel_recv`, `channel_close`) backed by Win32 Critical Sections/Condition Variables and POSIX pthread primitives.
+* **Modular Standard Library**: Full pure-Quokka stdlib (`src/std/`): `std::io` (file I/O, paths), `std::string` (search, split, join, trim, replace), `std::collections` (Queue, Stack, Set, map, filter, reduce), `std::json` (recursive-descent parser & serializer), `std::net` (TCP streams, HTTP client), and `std::pkg` (package manifests).
+* **Comprehensive Developer Tooling**: Embedded CLI developer tools:
+  - `quokka fmt [-w]`: Zero-config code formatter.
+  - `quokka lsp`: Full Language Server Protocol server with diagnostics, hover, and document formatting.
+  - `quokka debug`: Interactive terminal debugger with breakpoints, stepping, locals, and call stack inspection.
+  - `quokka pkg [init|list]`: Package manifest scaffold and stdlib discovery.
+  - `quokka check-self`: Direct CLI command to verify multi-stage cryptographic AST self-hosting reproducibility.
+* **Thread-Local Concurrency Hardening**: Concurrency engine hardened with thread-local interpreter state (`_Thread_local` / `__declspec(thread)`), eliminating race conditions across multi-producer single-consumer channels and worker pools.
+* **Interpreter & VM Parity**: 100% execution parity between the tree-walking interpreter and bytecode VM (`quokka --vm`), including thread returns, closures, anonymous lambdas, string comparison, and imports.
 * **Modular Codebase & Imports**: Multi-file code organization via `import "path/to/module"` and `import "module" as alias`, featuring automatic duplicate import prevention and standard library path resolution.
 * **User-Defined Structs**: First-class struct definitions (`struct Point { x, y }`) with field instantiation, property access (`p.x`), and mutable field updates (`p.x = 99`).
 * **Cross-Platform Networking**: Built-in socket primitives (`socket_connect`, `socket_listen`, `socket_accept`, `socket_send`, `socket_recv`, `socket_close`) backed by Winsock on Windows and BSD sockets on POSIX.

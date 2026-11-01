@@ -1,4 +1,4 @@
-# Quokka Language Behavior Specification (v0.9.4)
+# Quokka Language Behavior Specification (v0.9.5)
 
 ## 1. Overview & Execution Architecture
 Quokka is an expression-oriented, deterministic, self-hosted programming language designed for clarity, safety, and modern systems and AI workflows. Quokka features multiple execution modes:

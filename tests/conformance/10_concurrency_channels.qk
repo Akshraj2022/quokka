@@ -1,0 +1,36 @@
+// 10_concurrency_channels.qk - Conformance test for MPSC channel communication
+
+fn test_channels() {
+    let ch = channel_new(10)
+
+    let t1 = thread_spawn(fn() {
+        channel_send(ch, 100)
+        channel_send(ch, 200)
+        return true
+    })
+
+    let t2 = thread_spawn(fn() {
+        channel_send(ch, 300)
+        return true
+    })
+
+    unwrap_or(thread_join(t1), false)
+    unwrap_or(thread_join(t2), false)
+
+    let mut sum = 0
+    let mut i = 0
+    while i < 3 {
+        let msg = unwrap_or(channel_recv(ch), 0)
+        sum = sum + msg
+        i = i + 1
+    }
+
+    if sum != 600 {
+        panic("Channel message sum mismatch")
+    }
+
+    channel_close(ch)
+}
+
+test_channels()
+println("Concurrency channels test passed")

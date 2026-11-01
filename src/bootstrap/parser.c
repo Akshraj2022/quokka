@@ -545,10 +545,25 @@ static Node *parse_postfix(Parser *p) {
             expr = idx_node;
         } else if (match(p, TOK_DOT)) {
             consume(p, TOK_IDENT, "Expect property name after '.'");
-            Node *dot = node_new(NODE_GET_FIELD, p->previous.line);
-            dot->as.get_field.object = expr;
-            dot->as.get_field.field = qk_strndup(p->previous.start, p->previous.length);
-            expr = dot;
+            char *field_name = qk_strndup(p->previous.start, p->previous.length);
+            if (match(p, TOK_LPAREN)) {
+                Node *call_node = node_new(NODE_CALL, p->previous.line);
+                call_node->as.call.fn_name = field_name;
+                nodelist_init(&call_node->as.call.args);
+                if (!check(p, TOK_RPAREN)) {
+                    do {
+                        nodelist_push(&call_node->as.call.args, expression(p));
+                    } while (match(p, TOK_COMMA));
+                }
+                consume(p, TOK_RPAREN, "Expect ')' after arguments");
+                node_free(expr);
+                expr = call_node;
+            } else {
+                Node *dot = node_new(NODE_GET_FIELD, p->previous.line);
+                dot->as.get_field.object = expr;
+                dot->as.get_field.field = field_name;
+                expr = dot;
+            }
         } else {
             break;
         }

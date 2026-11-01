@@ -1,0 +1,75 @@
+// 17_atsrs_tiered_storage.qk - Conformance test for ATSRS adaptive memory tiering
+
+struct ATSRSConfig {
+    vram_budget_gb,
+    ram_budget_gb,
+    nvme_path,
+    prefetch_depth,
+    min_tokens_per_step
+}
+
+struct LayerTier {
+    layer_idx,
+    tier, // 0 = VRAM, 1 = RAM, 2 = NVMe
+    is_read_only
+}
+
+fn plan_atsrs_tiers(num_layers, layer_size_gb, config) {
+    let mut tiers = []
+    let mut current_vram = 0.0
+    let mut current_ram = 0.0
+
+    let mut i = 0
+    while i < num_layers {
+        if current_vram + layer_size_gb <= config.vram_budget_gb {
+            push(tiers, LayerTier(i, 0, true))
+            current_vram = current_vram + layer_size_gb
+        } else if current_ram + layer_size_gb <= config.ram_budget_gb {
+            push(tiers, LayerTier(i, 1, true))
+            current_ram = current_ram + layer_size_gb
+        } else {
+            push(tiers, LayerTier(i, 2, true)) // Cold layer on NVMe, strictly read-only
+        }
+        i = i + 1
+    }
+
+    return tiers
+}
+
+fn test_atsrs() {
+    let cfg = ATSRSConfig(4.0, 16.0, "build/nvme_cache", 2, 8192)
+
+    // 24 layers of 1.0 GB each
+    let tiers = plan_atsrs_tiers(24, 1.0, cfg)
+
+    if len(tiers) != 24 {
+        panic("Layer count mismatch")
+    }
+
+    // Verify T0 VRAM allocation (first 4 layers)
+    if tiers[0].tier != 0 or tiers[3].tier != 0 {
+        panic("T0 layer allocation mismatch")
+    }
+
+    // Verify T1 RAM allocation (next 16 layers)
+    if tiers[4].tier != 1 or tiers[19].tier != 1 {
+        panic("T1 layer allocation mismatch")
+    }
+
+    // Verify T2 NVMe allocation (remaining 4 layers)
+    if tiers[20].tier != 2 or tiers[23].tier != 2 {
+        panic("T2 layer allocation mismatch")
+    }
+
+    // Verify all base weights are read-only
+    let mut j = 0
+    while j < 24 {
+        if not tiers[j].is_read_only {
+            panic("Base weights must be read-only")
+        }
+        j = j + 1
+    }
+}
+
+test_atsrs()
+println("ATSRS tiered storage test passed")

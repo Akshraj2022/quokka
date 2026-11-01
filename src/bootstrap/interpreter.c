@@ -24,8 +24,20 @@
 #define QK_LIB_HANDLE void*
 #endif
 
-/* Forward declaration — used by builtins that need to call QkFunctions */
-static Interp *current_interp = NULL;
+/* Thread-local current_interp pointer for thread isolation */
+#if defined(_MSC_VER)
+static __declspec(thread) Interp *current_interp = NULL;
+#else
+static _Thread_local Interp *current_interp = NULL;
+#endif
+
+Interp *qk_get_current_interp(void) {
+    return current_interp;
+}
+
+void qk_set_current_interp(Interp *interp) {
+    current_interp = interp;
+}
 
 /* Helper: call a function or builtin value */
 static Value call_value(Value callee, Value *args, int argc, int line) {
@@ -516,6 +528,29 @@ static Value builtin_to_string(Value *args, int argc, int line) {
             return val_string(buf);
         }
         case VAL_STRUCT: snprintf(buf, sizeof(buf), "<struct %s>", args[0].as.struct_val && args[0].as.struct_val->name ? args[0].as.struct_val->name : ""); return val_string(buf);
+        case VAL_LIST: {
+            size_t cap = 256, len = 1;
+            char *lbuf = (char *)malloc(cap);
+            lbuf[0] = '[';
+            lbuf[1] = '\0';
+            for (int i = 0; i < args[0].as.list->count; i++) {
+                if (i > 0) {
+                    if (len + 3 >= cap) { cap *= 2; lbuf = (char *)realloc(lbuf, cap); }
+                    strcat(lbuf, ", ");
+                    len += 2;
+                }
+                Value item_str = builtin_to_string(&args[0].as.list->items[i], 1, line);
+                size_t item_len = strlen(item_str.as.string_val);
+                while (len + item_len + 2 >= cap) { cap *= 2; lbuf = (char *)realloc(lbuf, cap); }
+                strcat(lbuf, item_str.as.string_val);
+                len += item_len;
+                val_free(item_str);
+            }
+            if (len + 2 >= cap) { cap += 2; lbuf = (char *)realloc(lbuf, cap); }
+            strcat(lbuf, "]");
+            Value res; res.type = VAL_STRING; res.as.string_val = lbuf;
+            return res;
+        }
         default:         return val_string("<value>");
     }
 }
@@ -1404,6 +1439,31 @@ static Value builtin_hash_sha256(Value *args, int argc, int line) {
     return val_string(hex);
 }
 
+char *qk_serialize_ast_str(Node *ast) {
+    if (!ast) return strdup("None");
+    char *buf = malloc(10 * 1024 * 1024);
+    buf[0] = 0;
+    Value list = ast_to_list(ast);
+    serialize_value(list, buf);
+    val_free(list);
+    return buf;
+}
+
+char *qk_sha256_hash_str(const char *str) {
+    if (!str) return strdup("");
+    SHA256_CTX ctx;
+    uint8_t hash[32];
+    sha256_init(&ctx);
+    sha256_update(&ctx, (const uint8_t*)str, strlen(str));
+    sha256_final(&ctx, hash);
+    char *hex = malloc(65);
+    for (int i = 0; i < 32; i++) {
+        sprintf(hex + (i * 2), "%02x", hash[i]);
+    }
+    hex[64] = 0;
+    return hex;
+}
+
 
 bool capture_mode = false;
 static Value builtin_set_capture_mode(Value *args, int argc, int line) {
@@ -1548,6 +1608,8 @@ void interp_init(Interp *interp) {
     interp->imported_modules = NULL;
     interp->module_count     = 0;
     interp->module_cap       = 0;
+    interp->debug_hook       = NULL;
+    interp->debug_data       = NULL;
     current_interp = interp;
     interp_register_builtins(interp);
 }
@@ -1579,6 +1641,10 @@ Value interp_exec(Interp *interp, Node *node) {
         return val_unit();
 
     current_interp = interp;
+
+    if (interp->debug_hook && node->line > 0) {
+        interp->debug_hook(interp, node);
+    }
 
     switch (node->type) {
 
@@ -1655,6 +1721,20 @@ Value interp_exec(Interp *interp, Node *node) {
         /* Equality — works on any type via structural comparison */
         if (node->as.binary.op == TOK_EQ)  { bool eq = val_equal(left, right); val_free(left); val_free(right); return val_bool(eq); }
         if (node->as.binary.op == TOK_NEQ) { bool eq = val_equal(left, right); val_free(left); val_free(right); return val_bool(!eq); }
+
+        /* String comparison: <, >, <=, >= */
+        if (left.type == VAL_STRING && right.type == VAL_STRING) {
+            QkTokenType op = node->as.binary.op;
+            if (op == TOK_LT || op == TOK_GT || op == TOK_LEQ || op == TOK_GEQ) {
+                int cmp = strcmp(left.as.string_val, right.as.string_val);
+                val_free(left);
+                val_free(right);
+                if (op == TOK_LT)  return val_bool(cmp < 0);
+                if (op == TOK_GT)  return val_bool(cmp > 0);
+                if (op == TOK_LEQ) return val_bool(cmp <= 0);
+                if (op == TOK_GEQ) return val_bool(cmp >= 0);
+            }
+        }
 
         /* String concatenation: ++ */
         if (node->as.binary.op == TOK_CONCAT) {

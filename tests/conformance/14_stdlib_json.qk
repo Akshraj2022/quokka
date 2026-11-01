@@ -1,0 +1,43 @@
+// 14_stdlib_json.qk - Conformance test for std::json
+
+import "src/std/json.qk" as json_mod
+
+fn test_json() {
+    let json_text = "{\"name\": \"quokka\", \"version\": 95, \"verified\": true}"
+    let parsed_res = json_mod.json_parse(json_text)
+
+    let parsed_obj = match parsed_res {
+        Ok(obj) => obj,
+        Err(e)  => panic("JSON parsing failed: " ++ e),
+    }
+
+    let name_val = json_mod.json_object_get(parsed_obj, "name")
+    match name_val {
+        Some(v) => {
+            if v != "quokka" {
+                panic("JSON string field mismatch")
+            }
+        },
+        None => panic("Expected 'name' field in JSON object")
+    }
+
+    let ver_val = json_mod.json_object_get(parsed_obj, "version")
+    match ver_val {
+        Some(v) => {
+            if v != 95 {
+                panic("JSON int field mismatch")
+            }
+        },
+        None => panic("Expected 'version' field in JSON object")
+    }
+
+    // Stringification test
+    let my_list = [10, 20, 30]
+    let stringified = json_mod.json_stringify(my_list)
+    if stringified != "[10,20,30]" {
+        panic("JSON stringify list mismatch")
+    }
+}
+
+test_json()
+println("Stdlib JSON test passed")

@@ -1,0 +1,140 @@
+// Quokka Standard Library: string.qk
+// String manipulation utilities
+
+fn char_at(s, idx) {
+    if idx < 0 or idx >= len(s) {
+        return ""
+    }
+    return substring(s, idx, idx + 1)
+}
+
+fn starts_with(s, prefix) {
+    let slen = len(s)
+    let plen = len(prefix)
+    if plen > slen { return false }
+    return substring(s, 0, plen) == prefix
+}
+
+fn ends_with(s, suffix) {
+    let slen = len(s)
+    let suflen = len(suffix)
+    if suflen > slen { return false }
+    return substring(s, slen - suflen, slen) == suffix
+}
+
+fn index_of(s, sub) {
+    let slen = len(s)
+    let sublen = len(sub)
+    if sublen == 0 { return 0 }
+    if sublen > slen { return -1 }
+    let limit = slen - sublen + 1
+    let mut i = 0
+    while i < limit {
+        if substring(s, i, i + sublen) == sub {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+fn contains(s, sub) {
+    return index_of(s, sub) >= 0
+}
+
+fn split(s, delim) {
+    let mut result = []
+    let slen = len(s)
+    let dlen = len(delim)
+    if dlen == 0 {
+        let mut i = 0
+        while i < slen {
+            push(result, substring(s, i, i + 1))
+            i = i + 1
+        }
+        return result
+    }
+    let mut start = 0
+    let mut i = 0
+    let limit = slen - dlen + 1
+    while i < limit {
+        if substring(s, i, i + dlen) == delim {
+            push(result, substring(s, start, i))
+            start = i + dlen
+            i = start
+        } else {
+            i = i + 1
+        }
+    }
+    push(result, substring(s, start, slen))
+    return result
+}
+
+fn join(list, delim) {
+    let n = len(list)
+    if n == 0 { return "" }
+    let mut res = to_string(list[0])
+    let mut i = 1
+    while i < n {
+        res = res ++ delim ++ to_string(list[i])
+        i = i + 1
+    }
+    return res
+}
+
+fn trim_left(s) {
+    let slen = len(s)
+    let mut i = 0
+    while i < slen {
+        let ch = substring(s, i, i + 1)
+        if ch != " " and ch != "\t" and ch != "\n" and ch != "\r" {
+            break
+        }
+        i = i + 1
+    }
+    return substring(s, i, slen)
+}
+
+fn trim_right(s) {
+    let slen = len(s)
+    let mut i = slen
+    while i > 0 {
+        let ch = substring(s, i - 1, i)
+        if ch != " " and ch != "\t" and ch != "\n" and ch != "\r" {
+            break
+        }
+        i = i - 1
+    }
+    return substring(s, 0, i)
+}
+
+fn trim(s) {
+    return trim_right(trim_left(s))
+}
+
+fn replace(s, old_sub, new_sub) {
+    let parts = split(s, old_sub)
+    return join(parts, new_sub)
+}
+
+fn repeat(s, count) {
+    let mut res = ""
+    let mut i = 0
+    while i < count {
+        res = res ++ s
+        i = i + 1
+    }
+    return res
+}
+
+fn pad_left(s, width, pad_char) {
+    let diff = width - len(s)
+    if diff <= 0 { return s }
+    return repeat(pad_char, diff) ++ s
+}
+
+fn pad_right(s, width, pad_char) {
+    let diff = width - len(s)
+    if diff <= 0 { return s }
+    return s ++ repeat(pad_char, diff)
+}

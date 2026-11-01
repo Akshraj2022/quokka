@@ -12,6 +12,9 @@ SRCS = src/bootstrap/main.c \
        src/bootstrap/typecheck.c \
        src/bootstrap/compiler.c \
        src/bootstrap/vm.c \
+       src/bootstrap/formatter.c \
+       src/bootstrap/lsp.c \
+       src/bootstrap/debugger.c \
        src/joey/joey_native.c \
        src/joey/joey_watch.c \
        src/joey/joey_gui.c

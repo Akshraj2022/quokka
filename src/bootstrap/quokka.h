@@ -460,11 +460,18 @@ struct Interp {
     char **imported_modules;
     int module_count;
     int module_cap;
+    void (*debug_hook)(struct Interp *interp, Node *node);
+    void *debug_data;
 };
 
 void  interp_init(Interp *interp);
 Value interp_exec(Interp *interp, Node *node);
 void  interp_free(Interp *interp);
 void  interp_register_builtins(Interp *interp);
+Interp *qk_get_current_interp(void);
+void    qk_set_current_interp(Interp *interp);
+char   *qk_serialize_ast_str(Node *ast);
+char   *qk_sha256_hash_str(const char *str);
+Value   qk_call_value(Interp *interp, Value callee, Value *args, int argc, int line);
 
 #endif /* QUOKKA_H */

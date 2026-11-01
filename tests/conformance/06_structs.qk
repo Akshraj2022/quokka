@@ -1,0 +1,33 @@
+// 06_structs.qk - Conformance test for structs and field operations
+
+struct Point { x, y }
+struct Circle { center, radius }
+
+fn area_sq(c) {
+    return c.radius * c.radius
+}
+
+fn test_structs() {
+    let mut p = Point(10, 20)
+    if p.x != 10 or p.y != 20 {
+        panic("Struct field access failed")
+    }
+
+    p.x = 42
+    if p.x != 42 {
+        panic("Struct field mutation failed")
+    }
+
+    let c = Circle(p, 5)
+    if c.center.x != 42 or c.radius != 5 {
+        panic("Nested struct field access failed")
+    }
+
+    let a = area_sq(c)
+    if a != 25 {
+        panic("Struct function call failed")
+    }
+}
+
+test_structs()
+println("Structs test passed")

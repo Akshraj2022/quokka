@@ -28,6 +28,20 @@ foreach ($t in $tests) {
     }
 }
 
+$examplesPattern = Join-Path $rootDir "examples\*.qk"
+$examples = Get-ChildItem $examplesPattern
+foreach ($ex in $examples) {
+    Write-Host "Running example $($ex.Name)... " -NoNewline
+    $output = & $exe $ex.FullName 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "FAILED" -ForegroundColor Red
+        Write-Host $output
+        $all_passed = $false
+    } else {
+        Write-Host "OK" -ForegroundColor Green
+    }
+}
+
 if ($all_passed) {
     if (Get-Command python -ErrorAction SilentlyContinue) {
         python (Join-Path $scriptDir "test_100_ways.py")

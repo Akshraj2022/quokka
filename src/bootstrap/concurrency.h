@@ -38,6 +38,7 @@ typedef struct QkThread {
     Value result;
     bool completed;
     int refcount;
+    Env *parent_env;
 #ifdef _WIN32
     HANDLE handle;
     DWORD thread_id;

@@ -1,0 +1,106 @@
+// Quokka Standard Library: net.qk
+// TCP Networking and HTTP Client Utilities
+
+struct TcpStream { handle, host, port }
+struct HttpResponse { status, body, raw }
+
+fn connect(host, port) {
+    let res = socket_connect(host, port)
+    match res {
+        Ok(h)  => return Ok(TcpStream(h, host, port)),
+        Err(e) => return Err(e),
+    }
+}
+
+fn send(stream, data) {
+    return socket_send(stream.handle, data)
+}
+
+fn recv(stream, max_len) {
+    return socket_recv(stream.handle, max_len)
+}
+
+fn close(stream) {
+    return socket_close(stream.handle)
+}
+
+// --- HTTP Helpers ---
+
+fn parse_http_response(raw) {
+    let n = len(raw)
+    let mut header_end = -1
+    let mut i = 0
+    let limit = n - 3
+    while i < limit {
+        if substring(raw, i, i + 4) == "\r\n\r\n" {
+            header_end = i
+            break
+        }
+        i = i + 1
+    }
+
+    let headers_part = if header_end >= 0 { substring(raw, 0, header_end) } else { raw }
+    let body_part = if header_end >= 0 { substring(raw, header_end + 4, n) } else { "" }
+
+    // Parse status code: HTTP/1.1 200 OK
+    let mut status = 200
+    if len(headers_part) >= 12 {
+        let code_str = substring(headers_part, 9, 12)
+        status = unwrap_or(to_int(code_str), 200)
+    }
+
+    return HttpResponse(status, body_part, raw)
+}
+
+fn http_get(host, port, path) {
+    let stream_res = connect(host, port)
+    let stream = match stream_res {
+        Ok(s)  => s,
+        Err(e) => return Err("Connection failed: " ++ e),
+    }
+
+    let req = "GET " ++ path ++ " HTTP/1.1\r\nHost: " ++ host ++ "\r\nUser-Agent: Quokka/0.9.5\r\nConnection: close\r\n\r\n"
+    let send_res = send(stream, req)
+    match send_res {
+        Ok(_)  => None,
+        Err(e) => {
+            close(stream)
+            return Err("Failed to send request: " ++ e)
+        },
+    }
+
+    let recv_res = recv(stream, 65536)
+    close(stream)
+
+    match recv_res {
+        Ok(raw) => return Ok(parse_http_response(raw)),
+        Err(e)  => return Err("Failed to receive response: " ++ e),
+    }
+}
+
+fn http_post(host, port, path, body, content_type) {
+    let stream_res = connect(host, port)
+    let stream = match stream_res {
+        Ok(s)  => s,
+        Err(e) => return Err("Connection failed: " ++ e),
+    }
+
+    let body_len = to_string(len(body))
+    let req = "POST " ++ path ++ " HTTP/1.1\r\nHost: " ++ host ++ "\r\nUser-Agent: Quokka/0.9.5\r\nContent-Type: " ++ content_type ++ "\r\nContent-Length: " ++ body_len ++ "\r\nConnection: close\r\n\r\n" ++ body
+    let send_res = send(stream, req)
+    match send_res {
+        Ok(_)  => None,
+        Err(e) => {
+            close(stream)
+            return Err("Failed to send POST request: " ++ e)
+        },
+    }
+
+    let recv_res = recv(stream, 65536)
+    close(stream)
+
+    match recv_res {
+        Ok(raw) => return Ok(parse_http_response(raw)),
+        Err(e)  => return Err("Failed to receive response: " ++ e),
+    }
+}

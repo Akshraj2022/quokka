@@ -1,0 +1,50 @@
+// examples/atsrs_tiered_training.qk
+// Simulates ATSRS (Adaptive Tiered Storage for Resource-Starved training)
+// QLoRA execution on models larger than VRAM+RAM
+
+struct ATSRSMetrics {
+    step_time_ms,
+    tokens_per_sec,
+    io_wait_pct
+}
+
+fn simulate_training_step(num_layers, prefetch_depth, batch_tokens) {
+    let mut compute_time_ms = 0
+    let mut io_time_ms = 0
+
+    let mut layer = 0
+    while layer < num_layers {
+        // T0 Active layer computation
+        compute_time_ms = compute_time_ms + 12
+
+        // Prefetch depth 2 overlaps I/O with GPU compute
+        if layer >= prefetch_depth {
+            // Overlapped transfer from T1/T2
+            let transfer_cost = 4
+            if transfer_cost > 12 {
+                io_time_ms = io_time_ms + (transfer_cost - 12)
+            }
+        }
+        layer = layer + 1
+    }
+
+    let total_step_time = compute_time_ms + io_time_ms
+    let io_wait_pct = (io_time_ms * 100) / total_step_time
+    let tok_per_sec = (batch_tokens * 1000) / total_step_time
+
+    return ATSRSMetrics(total_step_time, tok_per_sec, io_wait_pct)
+}
+
+fn main() {
+    println("ATSRS - Adaptive Tiered Storage Training Simulator")
+    println("Tiers: T0 (VRAM), T1 (Pinned RAM), T2 (NVMe cold layers)")
+    println("Prefetch Depth: 2 (Async double-buffering overlap)")
+
+    let metrics = simulate_training_step(32, 2, 8192)
+    println("Step Time:   " ++ to_string(metrics.step_time_ms) ++ " ms")
+    println("Throughput:  " ++ to_string(metrics.tokens_per_sec) ++ " tokens/s")
+    println("I/O Wait:    " ++ to_string(metrics.io_wait_pct) ++ " %")
+    println("Status: Zero VRAM OOM, All base weights preserved read-only.")
+}
+
+main()

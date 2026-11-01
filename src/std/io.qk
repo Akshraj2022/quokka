@@ -1,0 +1,99 @@
+// Quokka Standard Library: io.qk
+// Comprehensive file and stream I/O utilities
+
+fn read_file(path) {
+    return file_read(path)
+}
+
+fn write_file(path, content) {
+    return file_write(path, content)
+}
+
+fn append_file(path, content) {
+    let current_res = file_read(path)
+    let current = match current_res {
+        Ok(c) => c,
+        Err(_) => "",
+    }
+    return file_write(path, current ++ content)
+}
+
+fn file_exists(path) {
+    let res = file_read(path)
+    return match res {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
+fn read_lines(path) {
+    let content_res = file_read(path)
+    match content_res {
+        Ok(content) => {
+            let mut lines = []
+            let mut line = ""
+            let n = len(content)
+            let mut i = 0
+            while i < n {
+                let ch = substring(content, i, i + 1)
+                if ch == "\n" {
+                    push(lines, line)
+                    line = ""
+                } else if ch != "\r" {
+                    line = line ++ ch
+                }
+                i = i + 1
+            }
+            if len(line) > 0 {
+                push(lines, line)
+            }
+            return Ok(lines)
+        },
+        Err(e) => return Err(e),
+    }
+}
+
+fn basename(path) {
+    let n = len(path)
+    let mut last_slash = -1
+    let mut i = 0
+    while i < n {
+        let ch = substring(path, i, i + 1)
+        if ch == "/" or ch == "\\" {
+            last_slash = i
+        }
+        i = i + 1
+    }
+    if last_slash < 0 {
+        return path
+    }
+    return substring(path, last_slash + 1, n)
+}
+
+fn extension(path) {
+    let base = basename(path)
+    let n = len(base)
+    let mut last_dot = -1
+    let mut i = 0
+    while i < n {
+        let ch = substring(base, i, i + 1)
+        if ch == "." {
+            last_dot = i
+        }
+        i = i + 1
+    }
+    if last_dot < 0 {
+        return ""
+    }
+    return substring(base, last_dot + 1, n)
+}
+
+fn join_path(dir, file) {
+    let n = len(dir)
+    if n == 0 { return file }
+    let last_ch = substring(dir, n - 1, n)
+    if last_ch == "/" or last_ch == "\\" {
+        return dir ++ file
+    }
+    return dir ++ "/" ++ file
+}

@@ -1,0 +1,49 @@
+// examples/data_structures.qk
+// Demonstrates custom recursive data structures (Binary Search Tree)
+
+struct BSTNode { val, left, right }
+
+fn bst_insert(root, val) {
+    match root {
+        None => return Some(BSTNode(val, None, None)),
+        Some(node) => {
+            if val < node.val {
+                let new_left = bst_insert(node.left, val)
+                return Some(BSTNode(node.val, new_left, node.right))
+            } else {
+                let new_right = bst_insert(node.right, val)
+                return Some(BSTNode(node.val, node.left, new_right))
+            }
+        }
+    }
+}
+
+fn bst_inorder(root, acc) {
+    match root {
+        None => None,
+        Some(node) => {
+            bst_inorder(node.left, acc)
+            push(acc, node.val)
+            bst_inorder(node.right, acc)
+        }
+    }
+}
+
+fn main() {
+    let mut tree = None
+    let values = [50, 30, 70, 20, 40, 60, 80]
+
+    let mut i = 0
+    while i < len(values) {
+        tree = bst_insert(tree, values[i])
+        i = i + 1
+    }
+
+    let mut sorted = []
+    bst_inorder(tree, sorted)
+
+    println("Original values: [50, 30, 70, 20, 40, 60, 80]")
+    println("BST in-order traversal: " ++ to_string(sorted))
+}
+
+main()

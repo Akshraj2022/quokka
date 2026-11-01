@@ -1,0 +1,50 @@
+// 11_error_handling_monads.qk - Conformance test for Option, Result, and error propagation
+
+fn safe_divide(a, b) {
+    if b == 0 {
+        return Err("Division by zero")
+    }
+    return Ok(a / b)
+}
+
+fn compute_pipeline(x) {
+    let d = safe_divide(x, 2)?
+    let e = safe_divide(d, 5)?
+    return Ok(e)
+}
+
+fn test_monads() {
+    let opt_some = Some(42)
+    let opt_none = None
+
+    if unwrap_or(opt_some, 0) != 42 {
+        panic("Option unwrap failed")
+    }
+
+    if unwrap_or(opt_none, 99) != 99 {
+        panic("None fallback failed")
+    }
+
+    let ok_res = compute_pipeline(100)
+    match ok_res {
+        Ok(v) => {
+            if v != 10 {
+                panic("Pipeline Ok value mismatch")
+            }
+        },
+        Err(e) => panic("Pipeline unexpectedly failed")
+    }
+
+    let err_res = safe_divide(10, 0)
+    match err_res {
+        Ok(v) => panic("Expected Err from division by zero"),
+        Err(msg) => {
+            if msg != "Division by zero" {
+                panic("Wrong error message")
+            }
+        }
+    }
+}
+
+test_monads()
+println("Error handling monads test passed")

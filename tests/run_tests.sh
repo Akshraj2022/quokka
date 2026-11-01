@@ -4,10 +4,18 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$DIR/.." && pwd)"
 
-EXE="$ROOT/build/quokka"
-if [ ! -f "$EXE" ]; then EXE="$ROOT/build/quokka_linux"; fi
-if [ ! -f "$EXE" ]; then EXE="$ROOT/build/quokka.exe"; fi
-if [ ! -f "$EXE" ]; then EXE="$ROOT/build/qk_bootstrap"; fi
+EXE=""
+if [ -f "$ROOT/build/quokka.exe" ]; then
+    EXE="$ROOT/build/quokka.exe"
+elif [ -f "$ROOT/quokka.exe" ]; then
+    EXE="$ROOT/quokka.exe"
+elif [ -f "$ROOT/build/quokka" ]; then
+    EXE="$ROOT/build/quokka"
+elif [ -f "$ROOT/build/quokka_linux" ]; then
+    EXE="$ROOT/build/quokka_linux"
+elif [ -f "$ROOT/build/qk_bootstrap" ]; then
+    EXE="$ROOT/build/qk_bootstrap"
+fi
 if [ ! -f "$EXE" ]; then
     echo "Executable not found. Please build first."
     exit 1

@@ -1,0 +1,29 @@
+// 09_concurrency_threads.qk - Conformance test for threads and worker parallelism
+
+fn fib(n) {
+    if n <= 1 { return n }
+    return fib(n - 1) + fib(n - 2)
+}
+
+fn worker_task(arg) {
+    return arg * 2 + 10
+}
+
+fn test_threads() {
+    let t1 = thread_spawn(fn() { return fib(15) })
+    let t2 = thread_spawn(fn() { return worker_task(25) })
+
+    let r1 = unwrap_or(thread_join(t1), 0)
+    let r2 = unwrap_or(thread_join(t2), 0)
+
+    if r1 != 610 {
+        panic("Thread fib(15) return mismatch")
+    }
+
+    if r2 != 60 {
+        panic("Thread worker_task(25) return mismatch")
+    }
+}
+
+test_threads()
+println("Concurrency threads test passed")

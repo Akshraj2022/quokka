@@ -1,0 +1,39 @@
+// 13_stdlib_io.qk - Conformance test for std::io
+
+import "src/std/io.qk" as io_mod
+
+fn test_io() {
+    let test_path = "build/test_io_temp.txt"
+    let content = "Hello Quokka File System\nSecond line\n"
+
+    let write_res = io_mod.write_file(test_path, content)
+    match write_res {
+        Ok(_) => None,
+        Err(e) => panic("Failed to write test file: " ++ e)
+    }
+
+    if not io_mod.file_exists(test_path) {
+        panic("File should exist after writing")
+    }
+
+    let read_res = io_mod.read_file(test_path)
+    match read_res {
+        Ok(read_back) => {
+            if read_back != content {
+                panic("Content read back mismatch")
+            }
+        },
+        Err(e) => panic("Failed to read test file: " ++ e)
+    }
+
+    let p = io_mod.join_path("src", "main.qk")
+    if io_mod.basename(p) != "main.qk" {
+        panic("Basename mismatch")
+    }
+    if io_mod.extension(p) != "qk" {
+        panic("Extension mismatch")
+    }
+}
+
+test_io()
+println("Stdlib IO test passed")

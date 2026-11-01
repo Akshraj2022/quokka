@@ -1,0 +1,22 @@
+// examples/http_echo_server.qk
+// Demonstrates HTTP client/server communication simulation using std::net
+
+import "src/std/net.qk" as net
+
+fn handle_client_request(raw_request) {
+    let resp = net.parse_http_response(raw_request)
+    println("Parsed request status: " ++ to_string(resp.status))
+    println("Payload received: " ++ resp.body)
+
+    let body_len = to_string(len(resp.body))
+    let reply = "HTTP/1.1 200 OK\r\nContent-Length: " ++ body_len ++ "\r\n\r\n" ++ resp.body
+    return reply
+}
+
+fn main() {
+    let mock_wire = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello from Quokka Net!"
+    let response = handle_client_request(mock_wire)
+    println("Echo server response generated (" ++ to_string(len(response)) ++ " bytes)")
+}
+
+main()

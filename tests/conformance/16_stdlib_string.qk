@@ -1,0 +1,41 @@
+// 16_stdlib_string.qk - Conformance test for std::string
+
+import "src/std/string.qk" as str_mod
+
+fn test_string() {
+    let s = "  hello quokka world  "
+    let trimmed = str_mod.trim(s)
+    if trimmed != "hello quokka world" {
+        panic("trim mismatch")
+    }
+
+    if not str_mod.starts_with(trimmed, "hello") {
+        panic("starts_with mismatch")
+    }
+
+    if not str_mod.ends_with(trimmed, "world") {
+        panic("ends_with mismatch")
+    }
+
+    if not str_mod.contains(trimmed, "quokka") {
+        panic("contains mismatch")
+    }
+
+    let idx = str_mod.index_of(trimmed, "quokka")
+    if idx != 6 {
+        panic("index_of mismatch")
+    }
+
+    let replaced = str_mod.replace(trimmed, "world", "universe")
+    if replaced != "hello quokka universe" {
+        panic("replace mismatch")
+    }
+
+    let repeated = str_mod.repeat("qk!", 3)
+    if repeated != "qk!qk!qk!" {
+        panic("repeat mismatch")
+    }
+}
+
+test_string()
+println("Stdlib string test passed")
